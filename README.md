@@ -1,8 +1,6 @@
 # 拾阶 STEPWELL · readers
 
-把每一次学习读成一套书。这是一套 **Markdown 驱动** 的个人系列研读库：书目、卷册、章节都是仓库里的文档，构建后变成静态网站，可托管在 GitHub，并由 Netlify 自动发布。
-
-视觉与信息架构来自 `prototype/qwen3-8max2.html`，做成了可维护的 Astro 项目。
+把每一次学习读成一套书。Pi 与 DeepTutor 两册源码研习，按项目文件夹放 Markdown，构建后由 Netlify 发布。
 
 ## 本地运行
 
@@ -36,7 +34,6 @@ content/
     _book.md
     00-intro-methodology.md
     ...
-  journal/                   # 书房手记
 ```
 
 文章 frontmatter 最少只要 `title`，有 `summary` 更好：
@@ -106,7 +103,6 @@ src/pages/         书房 / 书目 / 章节
 src/components/    顶栏、封面、页脚、检索
 src/styles/        拾阶纸面样式
 src/scripts/app.ts 进度、主题、检索、快捷键
-prototype/         原始单文件 UI，不参与构建
 ```
 
 书房、书目、正文三层路由：

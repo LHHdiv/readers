@@ -921,17 +921,6 @@
       transition: height 1s ease
     }
 
-    .spine-empty {
-      background: transparent;
-      border: 1px dashed var(--line2);
-      color: var(--ink2);
-      box-shadow: none
-    }
-
-    .spine-empty:hover {
-      transform: none
-    }
-
     .shelf-board {
       height: 14px;
       background: linear-gradient(#33271A, #241A0F);
@@ -1140,149 +1129,6 @@
       font-size: 18px;
       border: 1px dashed var(--line2);
       border-radius: 4px
-    }
-
-    /* ============ 10 · 即将开卷（明信片） ============ */
-    .posts {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 30px;
-      padding-top: 14px
-    }
-
-    .post {
-      width: 262px;
-      background: var(--paper2);
-      border: 1px solid var(--line);
-      padding: 22px 20px 24px;
-      position: relative;
-      transform: rotate(var(--r, 0deg));
-      transition: transform .4s cubic-bezier(.2, .7, .2, 1), box-shadow .4s;
-      box-shadow: 0 10px 22px -14px rgba(30, 22, 10, .35)
-    }
-
-    .post::before {
-      content: "";
-      position: absolute;
-      top: -11px;
-      left: 50%;
-      transform: translateX(-50%) rotate(-2deg);
-      width: 92px;
-      height: 22px;
-      background: color-mix(in srgb, var(--paper3) 78%, transparent);
-      border: 1px solid rgba(0, 0, 0, .05)
-    }
-
-    .post:hover {
-      transform: rotate(0) translateY(-8px);
-      box-shadow: var(--shadow)
-    }
-
-    .post .pd {
-      font-family: var(--mono);
-      font-size: 10px;
-      letter-spacing: .24em;
-      color: var(--accent)
-    }
-
-    .post h4 {
-      font-family: var(--serif);
-      font-weight: 900;
-      font-size: 20px;
-      margin: 9px 0 7px
-    }
-
-    .post p {
-      font-size: 13px;
-      color: var(--ink2)
-    }
-
-    .post .ps {
-      position: absolute;
-      top: 14px;
-      right: 12px;
-      font-family: var(--mono);
-      font-size: 9px;
-      letter-spacing: .2em;
-      color: var(--gold);
-      border: 1px dashed var(--gold);
-      padding: 4px 6px;
-      transform: rotate(6deg)
-    }
-
-    /* ============ 11 · 手记 ============ */
-    .jgrid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 26px
-    }
-
-    .jcard {
-      border: 1px solid var(--line);
-      background: var(--paper);
-      border-radius: 4px;
-      overflow: hidden;
-      transition: transform .35s, box-shadow .35s
-    }
-
-    .jcard:hover {
-      transform: translateY(-5px);
-      box-shadow: var(--shadow)
-    }
-
-    .jimg {
-      aspect-ratio: 16/10;
-      overflow: hidden;
-      border-bottom: 1px solid var(--line)
-    }
-
-    .jimg img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      filter: sepia(.22) contrast(1.03);
-      animation: kb 18s ease-in-out infinite alternate
-    }
-
-    .jcard:nth-child(2) .jimg img {
-      animation-delay: -6s
-    }
-
-    .jcard:nth-child(3) .jimg img {
-      animation-delay: -12s
-    }
-
-    @keyframes kb {
-      from {
-        transform: scale(1) translate(0, 0)
-      }
-
-      to {
-        transform: scale(1.12) translate(-2.5%, 2%)
-      }
-    }
-
-    .jbody {
-      padding: 17px 19px 20px
-    }
-
-    .jd {
-      font-family: var(--mono);
-      font-size: 10px;
-      letter-spacing: .26em;
-      color: var(--accent)
-    }
-
-    .jbody h4 {
-      font-family: var(--serif);
-      font-weight: 700;
-      font-size: 18.5px;
-      margin: 8px 0 7px
-    }
-
-    .jbody p {
-      font-size: 13px;
-      color: var(--ink2)
     }
 
     /* ============ 12 · 台账（深色统计带） ============ */
@@ -2492,10 +2338,6 @@
       .mast-meta {
         gap: 8px 14px
       }
-
-      .posts {
-        justify-content: center
-      }
     }
 
     /* ============ 19 · 降级动效 ============ */
@@ -2605,10 +2447,6 @@
 
       .lib {
         grid-template-columns: 1fr;
-      }
-
-      .post {
-        width: 100%;
       }
     }
 

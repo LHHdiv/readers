@@ -1,12 +1,9 @@
 ---
 import Base from "../layouts/Base.astro";
 import Cover from "../components/Cover.astro";
-import { upcoming } from "../site.config";
-import { getCollection } from "astro:content";
 import { loadLibrary, toClientCatalog, todayLabel } from "../lib/catalog";
 
 const books = await loadLibrary();
-const journal = (await getCollection("journal")).sort((a, b) => a.data.order - b.data.order);
 const catalog = toClientCatalog(books);
 const first = books[0];
 const firstChapter = first?.chapters[0];
@@ -32,7 +29,7 @@ const today = todayLabel();
       </h1>
       <p class="mast-scr mono scr" data-text="STEP BY STEP · CHAPTER BY CHAPTER">&nbsp;</p>
       <p class="mast-lede">
-        每一次学习，都按一本书来组织：定目录、分卷册、记进度、留手记。系列文章在这里被安放成一座可以随时回到现场的书房。
+        每一次学习，都按一本书来组织：定目录、分卷册、记进度。现在架上是 Pi 与 DeepTutor 两套源码研习。
       </p>
       <div class="mast-meta mono">
         <span>{today}</span><span class="sep"></span>
@@ -122,9 +119,6 @@ const today = todayLabel();
             </a>
           ))
         }
-        <div class="spine spine-empty" style="height:150px" aria-hidden="true">
-          <span class="sp-t">待上架</span>
-        </div>
       </div>
       <div class="shelf-board" aria-hidden="true"></div>
     </div>
@@ -215,62 +209,6 @@ const today = todayLabel();
         }
       </div>
       <div class="lib-empty" id="libEmpty">架上暂无此类书目，换个筛选试试。</div>
-    </div>
-  </section>
-
-  <section class="sec" style="padding-top:0">
-    <div class="sec-in">
-      <div class="sec-head rv">
-        <span class="sec-no">叁 /</span>
-        <h2 class="sec-t">即将开卷</h2>
-        <span class="sec-en">FORTHCOMING</span>
-        <span class="sec-rule"></span>
-      </div>
-      <div class="posts">
-        {
-          upcoming.map((item, i) => (
-            <div class="post rv" style={`--r:${(i % 2 ? 1 : -1) * (2 + i)}deg;--d:${i * 0.1}s`}>
-              <span class="ps">筹备中</span>
-              <p class="pd mono">{item.date}</p>
-              <h4>{item.title}</h4>
-              <p>{item.note}</p>
-            </div>
-          ))
-        }
-      </div>
-    </div>
-  </section>
-
-  <section class="sec" id="journal" style="padding-top:0">
-    <div class="sec-in">
-      <div class="sec-head rv">
-        <span class="sec-no">肆 /</span>
-        <h2 class="sec-t">手记</h2>
-        <span class="sec-en">JOURNAL</span>
-        <span class="sec-rule"></span>
-      </div>
-      <div class="jgrid">
-        {
-          journal.map((item, i) => (
-            <article class="jcard rv" style={`--d:${i * 0.1}s`}>
-              <div class="jimg">
-                <img
-                  src={item.data.image}
-                  alt=""
-                  width="640"
-                  height="400"
-                  loading={i === 0 ? "eager" : "lazy"}
-                />
-              </div>
-              <div class="jbody">
-                <p class="jd mono">{item.data.date}</p>
-                <h4>{item.data.title}</h4>
-                <p>{item.body.trim()}</p>
-              </div>
-            </article>
-          ))
-        }
-      </div>
     </div>
   </section>
 

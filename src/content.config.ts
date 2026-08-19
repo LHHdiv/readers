@@ -33,7 +33,7 @@ const books = defineCollection({
 
 const chapters = defineCollection({
   loader: glob({
-    pattern: ["**/*.md", "!**/_*.md", "!journal/**"],
+    pattern: ["**/*.md", "!**/_*.md"],
     base: "./content",
   }),
   schema: z.object({
@@ -45,14 +45,4 @@ const chapters = defineCollection({
   }),
 });
 
-const journal = defineCollection({
-  loader: glob({ pattern: "**/*.md", base: "./content/journal" }),
-  schema: z.object({
-    date: z.string(),
-    title: z.string(),
-    image: z.string(),
-    order: z.number(),
-  }),
-});
-
-export const collections = { books, chapters, journal };
+export const collections = { books, chapters };
