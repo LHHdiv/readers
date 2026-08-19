@@ -1,0 +1,72 @@
+---
+import "../styles/stepwell.css";
+import Topbar from "../components/Topbar.astro";
+import Footer from "../components/Footer.astro";
+import SearchPalette from "../components/SearchPalette.astro";
+import { site } from "../site.config";
+import type { ClientBook } from "../lib/catalog";
+
+interface Props {
+  title?: string;
+  description?: string;
+  view?: "home" | "book" | "reader";
+  catalog: ClientBook[];
+}
+
+const title = Astro.props.title ?? `${site.name} ${site.nameEn} · 个人系列研读库`;
+const description = Astro.props.description ?? site.description;
+const view = Astro.props.view ?? "home";
+const canonical = new URL(Astro.url.pathname, Astro.site);
+const catalogJson = JSON.stringify(Astro.props.catalog);
+---
+
+<!doctype html>
+<html lang={site.locale} data-theme="light" data-view={view}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonical} />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,400..700&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Serif+SC:wght@400;600;700;900&family=Noto+Sans+SC:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <script is:inline define:vars={{ storageKey: site.storageKey }}>
+      try {
+        const raw = localStorage.getItem(storageKey);
+        const state = raw ? JSON.parse(raw) : {};
+        const theme =
+          state.theme ||
+          (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+        document.documentElement.dataset.theme = theme;
+        if (state.fs != null) {
+          document.documentElement.style.setProperty("--prose-fs", 16 + state.fs * 1.4 + "px");
+        }
+      } catch (error) {
+        /* keep default light theme */
+      }
+    </script>
+  </head>
+  <body>
+    <a class="skip" href="#app">跳到正文</a>
+    <Topbar view={view} />
+    <main id="app" data-view={view}>
+      <slot />
+    </main>
+    <Footer />
+    <SearchPalette />
+    <script id="catalog-data" type="application/json" is:inline set:html={catalogJson}></script>
+    <script>
+      import "../scripts/app.ts";
+    </script>
+  </body>
+</html>

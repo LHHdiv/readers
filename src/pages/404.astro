@@ -1,0 +1,21 @@
+---
+import Base from "../layouts/Base.astro";
+import { loadLibrary, toClientCatalog } from "../lib/catalog";
+
+const books = await loadLibrary();
+const catalog = toClientCatalog(books);
+---
+
+<Base catalog={catalog} title="页不在架上 · 拾阶 STEPWELL" description="没有找到这一页。">
+  <section class="sec">
+    <div class="sec-in" style="max-width:36em;padding-block:12vh">
+      <p class="kicker"><span class="k-dot"></span>404 · NOT ON THE SHELF</p>
+      <h1 class="book-title">这一页还没上架</h1>
+      <p class="book-intro">也许是链接写错了，也许是这本书还在编纂。回到书房重新选一本。</p>
+      <div class="bact">
+        <a class="btn btn-solid" href="/">回到书房</a>
+        <a class="btn btn-ghost" href="/#library">浏览书目</a>
+      </div>
+    </div>
+  </section>
+</Base>

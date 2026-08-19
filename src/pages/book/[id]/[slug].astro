@@ -1,0 +1,117 @@
+---
+import { render } from "astro:content";
+import Base from "../../../layouts/Base.astro";
+import { loadLibrary, toClientCatalog, findBook, findChapter } from "../../../lib/catalog";
+
+export async function getStaticPaths() {
+  const books = await loadLibrary();
+  return books.flatMap((book) =>
+    book.chapters.map((chapter) => ({
+      params: { id: book.id, slug: chapter.slug },
+    })),
+  );
+}
+
+const books = await loadLibrary();
+const catalog = toClientCatalog(books);
+const book = findBook(books, Astro.params.id!);
+const chapter = book ? findChapter(book, Astro.params.slug!) : null;
+if (!book || !chapter) throw new Error(`unknown chapter: ${Astro.params.id}/${Astro.params.slug}`);
+
+const { Content, headings } = await render(chapter.entry);
+const prev = book.chapters[chapter.idx - 1] ?? null;
+const next = book.chapters[chapter.idx + 1] ?? null;
+const toc = headings.filter((heading) => heading.depth === 2 || heading.depth === 3);
+---
+
+<Base
+  catalog={catalog}
+  view="reader"
+  title={`${chapter.entry.data.title} · 《${book.title}》· 拾阶`}
+  description={chapter.entry.data.summary}
+>
+  <div class="rprog" id="rprog"></div>
+  <div class="reader-top">
+    <a class="rt-back" href={book.path}>← 《{book.title}》</a>
+    <span class="rt-mid">
+      {chapter.entry.data.vol} · 第 {chapter.idx + 1} / {book.total} 讲 · 约 {chapter.minutes} 分钟
+    </span>
+    <div class="rt-tools">
+      <button class="ibtn" data-fs="-1" type="button" aria-label="缩小字号">A−</button>
+      <button class="ibtn" data-fs="1" type="button" aria-label="放大字号">A＋</button>
+    </div>
+  </div>
+  <div class="reader-grid">
+    <aside class="rtoc" id="rtoc" aria-label="本页目录">
+      <h5>本页目录 · TOC</h5>
+      <div id="rtocLinks">
+        {
+          toc.length ? (
+            toc.map((heading) => (
+              <a class={heading.depth === 3 ? "l3" : ""} href={`#${heading.slug}`}>
+                {heading.text}
+              </a>
+            ))
+          ) : (
+            <span class="mono" style="color:var(--ink2)">暂无小节</span>
+          )
+        }
+      </div>
+      <div class="rtoc-p mono">本篇进度 <b id="rtocPct">0%</b></div>
+    </aside>
+    <article
+      class="prose"
+      id="prose"
+      data-book={book.id}
+      data-slug={chapter.slug}
+      data-prev={prev?.path ?? ""}
+      data-next={next?.path ?? ""}
+    >
+      <p class="art-kicker">《{book.title}》· {chapter.entry.data.vol}</p>
+      <h1 class="art-title">{chapter.entry.data.title}</h1>
+      <div class="art-meta mono">
+        <span>第 {chapter.idx + 1} / {book.total} 讲</span>
+        <span>{(chapter.words / 1000).toFixed(1)}k 字</span>
+        <span>约 {chapter.minutes} 分钟</span>
+        <span id="doneStamp" data-ch-stamp={`${book.id}:${chapter.slug}`}></span>
+      </div>
+      <div class="art-rule" aria-hidden="true"></div>
+      <div id="artBody">
+        <Content />
+      </div>
+      <div class="art-end">
+        <button class="btn btn-ghost" id="markBtn" type="button" data-mark={`${book.id}:${chapter.slug}`}>
+          标记为已读
+        </button>
+      </div>
+      <nav class="art-nav" aria-label="章节导航">
+        {
+          prev ? (
+            <a class="an prev" href={prev.path}>
+              <small>上一讲</small>
+              <b>{prev.entry.data.title}</b>
+            </a>
+          ) : (
+            <a class="an prev" href={book.path}>
+              <small>已是第一讲</small>
+              <b>回到目录</b>
+            </a>
+          )
+        }
+        {
+          next ? (
+            <a class="an next" href={next.path}>
+              <small>下一讲</small>
+              <b>{next.entry.data.title}</b>
+            </a>
+          ) : (
+            <a class="an next" href={book.path}>
+              <small>全书完</small>
+              <b>回到书目</b>
+            </a>
+          )
+        }
+      </nav>
+    </article>
+  </div>
+</Base>

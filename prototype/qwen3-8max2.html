@@ -1,0 +1,3329 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>拾阶 STEPWELL · 个人系列研读库</title>
+  <meta name="description" content="把每一次学习读成一套书——AI 生成的系列学习文章，按书目、卷册、章节组织的静态阅读站。">
+  <!--
+  ══════════════════════════════════════════════════════════════
+  拾阶 STEPWELL · 架构说明（给维护者）
+  ──────────────────────────────────────────────────────────────
+  · 单文件静态站，零构建、零依赖，可直接部署到 Netlify。
+  · 路由：hash 路由  #/  书房 │ #/book/<id>  书目 │ #/book/<id>/<n>  正文
+  · 数据：BOOKS 数组即“书目清单”，新增一套学习系列 = 追加一个对象。
+  · 正文：章节可写内联 md，也可指定 src:"content/<book>/ch01.md"
+          运行时 fetch 远端 Markdown（适配你让 AI 批量生成 .md 的流程）。
+  · 状态：阅读进度 / 主题 / 字号 持久化于 localStorage（stepwell.v1）。
+  ══════════════════════════════════════════════════════════════
+-->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,400..700&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Serif+SC:wght@400;600;700;900&family=Noto+Sans+SC:wght@400;500;700&display=swap"
+    rel="stylesheet">
+  <style>
+    /* ============ 01 · 设计令牌 ============ */
+    :root {
+      --head-h: 60px;
+      --paper: #F4EFE3;
+      --paper2: #ECE4D2;
+      --paper3: #E2D7BF;
+      --ink: #221B12;
+      --ink2: #6E6350;
+      --line: #D9CFB6;
+      --line2: #C6B896;
+      --accent: #B23A26;
+      --accent-soft: #C8502F;
+      --gold: #A87B2F;
+      --code-bg: #17120B;
+      --code-bar: #251D11;
+      --code-tx: #E9DFC5;
+      --serif: 'Fraunces', 'Noto Serif SC', 'Songti SC', 'SimSun', serif;
+      --sans: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      --mono: 'IBM Plex Mono', 'SFMono-Regular', Menlo, monospace;
+      --shadow: 0 22px 44px -20px rgba(34, 27, 18, .35);
+      --prose-fs: 17.5px;
+    }
+
+    html[data-theme="dark"] {
+      --paper: #171208;
+      --paper2: #201910;
+      --paper3: #2B2213;
+      --ink: #EDE3CB;
+      --ink2: #A3967B;
+      --line: #3B3120;
+      --line2: #4E4128;
+      --accent: #DE5B36;
+      --accent-soft: #E8734C;
+      --gold: #C79A4B;
+      --shadow: 0 22px 44px -18px rgba(0, 0, 0, .6);
+    }
+
+    /* ============ 02 · 基础 ============ */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box
+    }
+
+    html {
+      scroll-behavior: smooth
+    }
+
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--sans);
+      font-size: 16px;
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      /* 纸纹噪点 */
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: 120;
+      pointer-events: none;
+      opacity: .05;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='.6'/%3E%3C/svg%3E");
+    }
+
+    ::selection {
+      background: var(--accent);
+      color: #F7F0DF
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none
+    }
+
+    button {
+      font-family: inherit;
+      color: inherit;
+      background: none;
+      border: 0;
+      cursor: pointer
+    }
+
+    img {
+      display: block;
+      max-width: 100%
+    }
+
+    :focus-visible {
+      outline: 2px dashed var(--accent);
+      outline-offset: 3px
+    }
+
+    .mono {
+      font-family: var(--mono)
+    }
+
+    ::-webkit-scrollbar {
+      width: 10px;
+      height: 10px
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--line2);
+      border-radius: 6px;
+      border: 2px solid var(--paper)
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent
+    }
+
+    .skip {
+      position: absolute;
+      left: -999px;
+      top: 8px;
+      z-index: 200;
+      background: var(--ink);
+      color: var(--paper);
+      padding: 8px 14px;
+      font-size: 13px
+    }
+
+    .skip:focus {
+      left: 8px
+    }
+
+    #app {
+      animation: viewIn .5s cubic-bezier(.2, .7, .2, 1) both
+    }
+
+    @keyframes viewIn {
+      from {
+        opacity: 0;
+        transform: translateY(14px)
+      }
+
+      to {
+        opacity: 1;
+        transform: none
+      }
+    }
+
+    /* 揭示动效 */
+    .rv {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity .7s ease, transform .7s cubic-bezier(.2, .7, .2, 1);
+      transition-delay: var(--d, 0s)
+    }
+
+    .rv.in {
+      opacity: 1;
+      transform: none
+    }
+
+    /* ============ 03 · 顶栏 ============ */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 60;
+      height: var(--head-h);
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 0 clamp(16px, 4vw, 40px);
+      background: var(--paper);
+      border-bottom: 1px solid var(--line);
+      transition: box-shadow .3s;
+    }
+
+    .topbar.scrolled {
+      box-shadow: 0 10px 26px -18px rgba(30, 22, 10, .4)
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 11px
+    }
+
+    .seal {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      background: var(--accent);
+      color: #F7F0DF;
+      font-family: var(--serif);
+      font-weight: 900;
+      font-size: 18px;
+      border-radius: 4px;
+      transform: rotate(-5deg);
+      box-shadow: inset 0 0 0 2px rgba(247, 240, 223, .35), 2px 3px 0 rgba(34, 27, 18, .18);
+      transition: transform .35s;
+    }
+
+    .brand:hover .seal {
+      transform: rotate(4deg) scale(1.06)
+    }
+
+    .bw {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.1
+    }
+
+    .bw b {
+      font-family: var(--serif);
+      font-size: 19px;
+      font-weight: 900;
+      letter-spacing: .06em
+    }
+
+    .bw i {
+      font-style: normal;
+      font-family: var(--mono);
+      font-size: 8.5px;
+      letter-spacing: .32em;
+      color: var(--ink2)
+    }
+
+    .tnav {
+      display: flex;
+      gap: 26px;
+      margin-inline: auto
+    }
+
+    .tnav a {
+      font-family: var(--mono);
+      font-size: 12px;
+      letter-spacing: .22em;
+      color: var(--ink2);
+      position: relative;
+      padding: 6px 0;
+      transition: color .25s
+    }
+
+    .tnav a::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      height: 1.5px;
+      width: 100%;
+      background: var(--accent);
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform .3s
+    }
+
+    .tnav a:hover,
+    .tnav a.on {
+      color: var(--ink)
+    }
+
+    .tnav a:hover::after,
+    .tnav a.on::after {
+      transform: scaleX(1)
+    }
+
+    .tools {
+      display: flex;
+      gap: 8px
+    }
+
+    .ibtn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 34px;
+      padding: 0 10px;
+      border: 1px solid var(--line);
+      border-radius: 3px;
+      color: var(--ink2);
+      transition: .25s;
+      font-size: 12px;
+    }
+
+    .ibtn svg {
+      width: 15px;
+      height: 15px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.8
+    }
+
+    .ibtn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      transform: translateY(-1px)
+    }
+
+    .ibtn .k {
+      font-family: var(--mono);
+      font-size: 10px;
+      border: 1px solid currentColor;
+      border-radius: 2px;
+      padding: 0 4px
+    }
+
+    /* ============ 04 · 开卷（首屏） ============ */
+    .mast {
+      position: relative;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: clamp(26px, 5vw, 72px);
+      padding: clamp(52px, 9vh, 104px) clamp(16px, 4vw, 48px) clamp(46px, 7vh, 80px);
+      max-width: 1280px;
+      margin: 0 auto;
+      overflow: hidden;
+    }
+
+    .mast-bg {
+      position: absolute;
+      right: -4%;
+      bottom: -18%;
+      font-family: var(--serif);
+      font-weight: 900;
+      font-size: clamp(220px, 34vw, 400px);
+      line-height: 1;
+      color: var(--ink);
+      opacity: .04;
+      user-select: none;
+      pointer-events: none
+    }
+
+    .mast-side {
+      writing-mode: vertical-rl;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-family: var(--serif);
+      font-size: 14px;
+      letter-spacing: .5em;
+      color: var(--ink2);
+      border-left: 1px solid var(--line);
+      padding-left: 20px;
+    }
+
+    .mast-side s {
+      width: 7px;
+      height: 7px;
+      background: var(--accent);
+      transform: rotate(45deg);
+      flex: none
+    }
+
+    .kicker {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: .3em;
+      color: var(--accent)
+    }
+
+    .k-dot {
+      width: 7px;
+      height: 7px;
+      background: var(--accent);
+      border-radius: 50%;
+      animation: pulse 2.4s infinite
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        box-shadow: 0 0 0 0 rgba(178, 58, 38, .4)
+      }
+
+      55% {
+        box-shadow: 0 0 0 7px rgba(178, 58, 38, 0)
+      }
+    }
+
+    .mast-title {
+      font-family: var(--serif);
+      font-weight: 900;
+      font-size: clamp(42px, 7vw, 88px);
+      line-height: 1.12;
+      letter-spacing: .02em;
+      margin-top: 20px
+    }
+
+    .mast-title em {
+      font-style: normal;
+      color: var(--accent);
+      position: relative;
+      display: inline-block
+    }
+
+    .uline {
+      position: absolute;
+      left: -2%;
+      bottom: -10px;
+      width: 104%;
+      height: 14px;
+      overflow: visible
+    }
+
+    .uline path {
+      stroke: var(--accent);
+      stroke-width: 5;
+      fill: none;
+      stroke-linecap: round;
+      stroke-dasharray: 240;
+      stroke-dashoffset: 240;
+      animation: draw 1s .6s cubic-bezier(.4, 0, .2, 1) forwards;
+      opacity: .85
+    }
+
+    @keyframes draw {
+      to {
+        stroke-dashoffset: 0
+      }
+    }
+
+    .mast-scr {
+      margin-top: 26px;
+      font-size: 11.5px;
+      letter-spacing: .34em;
+      color: var(--ink2);
+      min-height: 1.4em
+    }
+
+    .mast-lede {
+      margin-top: 18px;
+      max-width: 36em;
+      color: var(--ink2);
+      font-size: 15.5px
+    }
+
+    .mast-meta {
+      margin-top: 34px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 22px;
+      align-items: center;
+      border-block: 1px solid var(--line);
+      padding: 13px 0;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--ink2)
+    }
+
+    .mast-meta b {
+      font-family: var(--serif);
+      font-size: 16px;
+      color: var(--accent);
+      font-weight: 700;
+      margin: 0 2px
+    }
+
+    .mast-meta .sep {
+      width: 4px;
+      height: 4px;
+      background: var(--line2);
+      transform: rotate(45deg)
+    }
+
+    .mast-cta {
+      margin-top: 28px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 22px;
+      border: 1px solid var(--ink);
+      border-radius: 3px;
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: .04em;
+      transition: .3s;
+      cursor: pointer
+    }
+
+    .btn-solid {
+      background: var(--ink);
+      color: var(--paper)
+    }
+
+    .btn-solid:hover {
+      background: var(--accent);
+      border-color: var(--accent);
+      transform: translateY(-2px);
+      box-shadow: 0 12px 22px -12px rgba(178, 58, 38, .6)
+    }
+
+    .btn-ghost {
+      border-color: var(--line2);
+      color: var(--ink)
+    }
+
+    .btn-ghost:hover {
+      border-color: var(--ink);
+      background: var(--paper2);
+      transform: translateY(-2px)
+    }
+
+    .mast-seal {
+      position: absolute;
+      right: clamp(10px, 5vw, 70px);
+      top: clamp(60px, 10vh, 110px);
+      width: 76px;
+      height: 76px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      border: 2px solid var(--accent);
+      color: var(--accent);
+      border-radius: 6px;
+      font-family: var(--serif);
+      font-weight: 900;
+      font-size: 22px;
+      line-height: 1.2;
+      transform: rotate(7deg);
+      opacity: .8;
+      pointer-events: none;
+    }
+
+    /* ============ 05 · 分节头 ============ */
+    .sec {
+      padding: clamp(48px, 7vw, 86px) clamp(16px, 4vw, 48px)
+    }
+
+    .sec-in {
+      max-width: 1200px;
+      margin: 0 auto
+    }
+
+    .sec-head {
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+      margin-bottom: 30px
+    }
+
+    .sec-no {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--accent);
+      letter-spacing: .2em
+    }
+
+    .sec-t {
+      font-family: var(--serif);
+      font-weight: 900;
+      font-size: clamp(23px, 3vw, 32px);
+      letter-spacing: .04em
+    }
+
+    .sec-en {
+      font-family: var(--mono);
+      font-size: 10.5px;
+      letter-spacing: .3em;
+      color: var(--ink2)
+    }
+
+    .sec-rule {
+      flex: 1;
+      height: 1px;
+      background: var(--line)
+    }
+
+    /* ============ 06 · 在读（继续阅读） ============ */
+    .resume {
+      position: relative;
+      display: grid;
+      grid-template-columns: minmax(220px, 320px) minmax(0, 1fr);
+      gap: clamp(26px, 4vw, 52px);
+      align-items: center;
+      border: 1px solid var(--line);
+      background: var(--paper2);
+      padding: clamp(24px, 4vw, 44px);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .resume::after {
+      content: "在读";
+      position: absolute;
+      top: 20px;
+      right: 22px;
+      font-family: var(--serif);
+      font-weight: 700;
+      font-size: 13px;
+      color: var(--accent);
+      border: 1.5px solid var(--accent);
+      border-radius: 4px;
+      padding: 5px 7px;
+      transform: rotate(8deg);
+      letter-spacing: .3em;
+      opacity: .85;
+    }
+
+    .resume-cover {
+      max-width: 300px;
+      transform: rotate(-2deg);
+      transition: transform .45s cubic-bezier(.2, .7, .2, 1)
+    }
+
+    .resume-cover:hover {
+      transform: rotate(0) translateY(-8px)
+    }
+
+    .resume-k {
+      font-family: var(--mono);
+      font-size: 10.5px;
+      letter-spacing: .3em;
+      color: var(--accent)
+    }
+
+    .resume h3 {
+      font-family: var(--serif);
+      font-weight: 900;
+      font-size: clamp(22px, 2.6vw, 30px);
+      line-height: 1.3;
+      margin: 12px 0 4px
+    }
+
+    .resume .rv-sub {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--ink2);
+      letter-spacing: .14em
+    }
+
+    .resume .rv-x {
+      margin-top: 16px;
+      color: var(--ink2);
+      font-size: 14.5px;
+      max-width: 42em
+    }
+
+    .bar {
+      height: 6px;
+      background: var(--paper3);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 22px
+    }
+
+    .bar i {
+      display: block;
+      height: 100%;
+      background: var(--accent);
+      border-radius: 3px;
+      width: 0;
+      transition: width 1.1s cubic-bezier(.2, .7, .2, 1)
+    }
+
+    .bar-cap {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--ink2);
+      margin-top: 8px
+    }
+
+    .resume-cta {
+      margin-top: 24px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px
+    }
+
+    /* ============ 07 · 封面组件 ============ */
+    .cover {
+      --h1: #2E4B57;
+      --h2: #1F3540;
+      position: relative;
+      aspect-ratio: 3/4;
+      background: linear-gradient(155deg, var(--h1), var(--h2));
+      color: #F4EDDA;
+      border-radius: 3px;
+      overflow: hidden;
+      box-shadow: var(--shadow)
+    }
+
+    .cover::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 8px;
+      background: rgba(0, 0, 0, .28)
+    }
+
+    .cover::after {
+      content: "";
+      position: absolute;
+      left: 9px;
+      top: 0;
+      bottom: 0;
+      width: 1px;
+      background: rgba(255, 255, 255, .3)
+    }
+
+    .cover .pt {
+      position: absolute;
+      inset: 0;
+      pointer-events: none
+    }
+
+    .pt-a .pt {
+      background: repeating-linear-gradient(0deg, rgba(255, 255, 255, .07) 0 1px, transparent 1px 9px)
+    }
+
+    .pt-b .pt {
+      background-image: radial-gradient(rgba(255, 255, 255, .16) 1px, transparent 1.6px);
+      background-size: 13px 13px
+    }
+
+    .pt-c .pt {
+      background: repeating-linear-gradient(90deg, rgba(255, 255, 255, .06) 0 1px, transparent 1px 11px)
+    }
+
+    .cv-frame {
+      position: absolute;
+      inset: 13px;
+      border: 1px solid rgba(255, 255, 255, .28);
+      pointer-events: none
+    }
+
+    .cv-no {
+      position: absolute;
+      top: 22px;
+      left: 22px;
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: .24em;
+      opacity: .85
+    }
+
+    .cv-title {
+      position: absolute;
+      top: 52px;
+      right: 24px;
+      writing-mode: vertical-rl;
+      font-family: var(--serif);
+      font-weight: 700;
+      font-size: clamp(18px, 2vw, 26px);
+      letter-spacing: .2em;
+      max-height: calc(100% - 110px)
+    }
+
+    .cv-en {
+      position: absolute;
+      left: 22px;
+      bottom: 20px;
+      font-family: var(--mono);
+      font-size: 8.5px;
+      letter-spacing: .3em;
+      opacity: .75;
+      max-width: 60%
+    }
+
+    .cv-seal {
+      position: absolute;
+      left: 18px;
+      bottom: 44px;
+      width: 26px;
+      height: 26px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(255, 255, 255, .7);
+      border-radius: 3px;
+      font-family: var(--serif);
+      font-size: 12px;
+      transform: rotate(-7deg)
+    }
+
+    .cover-h {
+      aspect-ratio: 16/9;
+      box-shadow: none
+    }
+
+    .cover-h .cv-title {
+      writing-mode: horizontal-tb;
+      top: 50%;
+      right: auto;
+      left: 24px;
+      transform: translateY(-50%);
+      max-height: none;
+      max-width: 68%;
+      letter-spacing: .14em
+    }
+
+    .cover-h .cv-en {
+      left: 24px;
+      bottom: 16px
+    }
+
+    .cover-h .cv-no {
+      top: 16px;
+      left: 24px
+    }
+
+    .cover-h .cv-seal {
+      display: none
+    }
+
+    /* ============ 08 · 书架（书脊） ============ */
+    .shelf-wrap {
+      border-block: 1px solid var(--line);
+      background: var(--paper2);
+      padding: 34px clamp(16px, 4vw, 48px) 0;
+      overflow: hidden
+    }
+
+    .shelf-in {
+      max-width: 1200px;
+      margin: 0 auto
+    }
+
+    .shelf-label {
+      font-family: var(--mono);
+      font-size: 10.5px;
+      letter-spacing: .34em;
+      color: var(--ink2);
+      margin-bottom: 26px;
+      display: flex;
+      align-items: center;
+      gap: 12px
+    }
+
+    .shelf-label::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: var(--line)
+    }
+
+    .shelf {
+      display: flex;
+      align-items: flex-end;
+      gap: clamp(10px, 1.8vw, 20px);
+      min-height: 290px;
+      overflow-x: auto;
+      padding: 0 4px 0;
+      scrollbar-width: thin
+    }
+
+    .spine {
+      flex: none;
+      width: clamp(46px, 4.6vw, 56px);
+      position: relative;
+      cursor: pointer;
+      background: linear-gradient(90deg, rgba(0, 0, 0, .3), transparent 26%), var(--h1);
+      color: #F2E9D4;
+      border-radius: 3px 3px 0 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      box-shadow: inset -7px 0 14px rgba(0, 0, 0, .28), inset 2px 0 0 rgba(255, 255, 255, .14);
+      transition: transform .4s cubic-bezier(.2, .7, .2, 1);
+    }
+
+    .spine:hover {
+      transform: translateY(-14px) rotate(-1.4deg)
+    }
+
+    .sp-t {
+      writing-mode: vertical-rl;
+      font-family: var(--serif);
+      font-weight: 600;
+      font-size: 13px;
+      letter-spacing: .16em
+    }
+
+    .sp-no {
+      position: absolute;
+      top: 9px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: var(--mono);
+      font-size: 8.5px;
+      opacity: .75
+    }
+
+    .sp-fill {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(255, 255, 255, .28);
+      transition: height 1s ease
+    }
+
+    .spine-empty {
+      background: transparent;
+      border: 1px dashed var(--line2);
+      color: var(--ink2);
+      box-shadow: none
+    }
+
+    .spine-empty:hover {
+      transform: none
+    }
+
+    .shelf-board {
+      height: 14px;
+      background: linear-gradient(#33271A, #241A0F);
+      border-radius: 2px;
+      box-shadow: 0 12px 20px -8px rgba(20, 14, 6, .45)
+    }
+
+    /* ============ 09 · 书目卡片 ============ */
+    .lib-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 28px
+    }
+
+    .chip {
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 7px 15px;
+      border: 1px solid var(--line2);
+      border-radius: 2px;
+      color: var(--ink2);
+      transition: .25s;
+      letter-spacing: .08em
+    }
+
+    .chip:hover {
+      border-color: var(--ink);
+      color: var(--ink)
+    }
+
+    .chip.on {
+      background: var(--ink);
+      color: var(--paper);
+      border-color: var(--ink)
+    }
+
+    .lib-search {
+      margin-left: auto;
+      position: relative
+    }
+
+    .lib-search input {
+      font-family: var(--mono);
+      font-size: 12.5px;
+      background: var(--paper);
+      border: 1px solid var(--line2);
+      border-radius: 2px;
+      color: var(--ink);
+      padding: 9px 12px 9px 32px;
+      width: 230px;
+      outline: none;
+      transition: .25s
+    }
+
+    .lib-search input:focus {
+      border-color: var(--accent);
+      width: 270px
+    }
+
+    .lib-search svg {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 14px;
+      height: 14px;
+      stroke: var(--ink2);
+      fill: none;
+      stroke-width: 2
+    }
+
+    .lib {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(305px, 1fr));
+      gap: 26px
+    }
+
+    .bcard {
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: var(--paper);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: transform .35s, box-shadow .35s;
+      position: relative
+    }
+
+    .bcard:hover {
+      transform: translateY(-6px);
+      box-shadow: var(--shadow)
+    }
+
+    .bcard .cover-h {
+      border-radius: 0
+    }
+
+    .bcard:hover .cover-h {
+      filter: brightness(1.06)
+    }
+
+    .bcard-st {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      z-index: 2;
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: .2em;
+      color: #F4EDDA;
+      border: 1px solid rgba(255, 255, 255, .65);
+      padding: 4px 8px;
+      border-radius: 2px;
+      transform: rotate(3deg)
+    }
+
+    .bcard-b {
+      padding: 18px 20px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+      flex: 1
+    }
+
+    .bcard-t {
+      display: flex;
+      align-items: baseline;
+      gap: 10px
+    }
+
+    .bcard-t b {
+      font-family: var(--serif);
+      font-weight: 900;
+      font-size: 20px;
+      letter-spacing: .03em
+    }
+
+    .bcard-t span {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--ink2);
+      border: 1px solid var(--line2);
+      padding: 2px 7px;
+      border-radius: 2px;
+      margin-left: auto;
+      white-space: nowrap
+    }
+
+    .bcard-sub {
+      font-size: 13.5px;
+      color: var(--ink2)
+    }
+
+    .bcard-meta {
+      font-family: var(--mono);
+      font-size: 10.5px;
+      color: var(--ink2);
+      display: flex;
+      gap: 14px;
+      letter-spacing: .06em
+    }
+
+    .bcard-foot {
+      margin-top: auto;
+      padding-top: 14px;
+      border-top: 1px dashed var(--line);
+      display: flex;
+      justify-content: space-between;
+      align-items: center
+    }
+
+    .bcard-go {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--accent);
+      letter-spacing: .1em;
+      transition: .25s
+    }
+
+    .bcard-go:hover {
+      letter-spacing: .2em
+    }
+
+    .bcard-up {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--ink2)
+    }
+
+    .hide {
+      display: none !important
+    }
+
+    .lib-empty {
+      display: none;
+      text-align: center;
+      padding: 70px 20px;
+      color: var(--ink2);
+      font-family: var(--serif);
+      font-size: 18px;
+      border: 1px dashed var(--line2);
+      border-radius: 4px
+    }
+
+    /* ============ 10 · 即将开卷（明信片） ============ */
+    .posts {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 30px;
+      padding-top: 14px
+    }
+
+    .post {
+      width: 262px;
+      background: var(--paper2);
+      border: 1px solid var(--line);
+      padding: 22px 20px 24px;
+      position: relative;
+      transform: rotate(var(--r, 0deg));
+      transition: transform .4s cubic-bezier(.2, .7, .2, 1), box-shadow .4s;
+      box-shadow: 0 10px 22px -14px rgba(30, 22, 10, .35)
+    }
+
+    .post::before {
+      content: "";
+      position: absolute;
+      top: -11px;
+      left: 50%;
+      transform: translateX(-50%) rotate(-2deg);
+      width: 92px;
+      height: 22px;
+      background: color-mix(in srgb, var(--paper3) 78%, transparent);
+      border: 1px solid rgba(0, 0, 0, .05)
+    }
+
+    .post:hover {
+      transform: rotate(0) translateY(-8px);
+      box-shadow: var(--shadow)
+    }
+
+    .post .pd {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: .24em;
+      color: var(--accent)
+    }
+
+    .post h4 {
+      font-family: var(--serif);
+      font-weight: 900;
+      font-size: 20px;
+      margin: 9px 0 7px
+    }
+
+    .post p {
+      font-size: 13px;
+      color: var(--ink2)
+    }
+
+    .post .ps {
+      position: absolute;
+      top: 14px;
+      right: 12px;
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: .2em;
+      color: var(--gold);
+      border: 1px dashed var(--gold);
+      padding: 4px 6px;
+      transform: rotate(6deg)
+    }
+
+    /* ============ 11 · 手记 ============ */
+    .jgrid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 26px
+    }
+
+    .jcard {
+      border: 1px solid var(--line);
+      background: var(--paper);
+      border-radius: 4px;
+      overflow: hidden;
+      transition: transform .35s, box-shadow .35s
+    }
+
+    .jcard:hover {
+      transform: translateY(-5px);
+      box-shadow: var(--shadow)
+    }
+
+    .jimg {
+      aspect-ratio: 16/10;
+      overflow: hidden;
+      border-bottom: 1px solid var(--line)
+    }
+
+    .jimg img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      filter: sepia(.22) contrast(1.03);
+      animation: kb 18s ease-in-out infinite alternate
+    }
+
+    .jcard:nth-child(2) .jimg img {
+      animation-delay: -6s
+    }
+
+    .jcard:nth-child(3) .jimg img {
+      animation-delay: -12s
+    }
+
+    @keyframes kb {
+      from {
+        transform: scale(1) translate(0, 0)
+      }
+
+      to {
+        transform: scale(1.12) translate(-2.5%, 2%)
+      }
+    }
+
+    .jbody {
+      padding: 17px 19px 20px
+    }
+
+    .jd {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: .26em;
+      color: var(--accent)
+    }
+
+    .jbody h4 {
+      font-family: var(--serif);
+      font-weight: 700;
+      font-size: 18.5px;
+      margin: 8px 0 7px
+    }
+
+    .jbody p {
+      font-size: 13px;
+      color: var(--ink2)
+    }
+
+    /* ============ 12 · 台账（深色统计带） ============ */
+    .ledger {
+      background: #20180D;
+      color: #EFE5CE;
+      padding: clamp(56px, 8vw, 84px) clamp(16px, 4vw, 48px)
+    }
+
+    .led-in {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      gap: clamp(24px, 4vw, 60px);
+      flex-wrap: wrap
+    }
+
+    .led-t {
+      font-family: var(--serif);
+      font-weight: 900;
+      font-size: clamp(22px, 2.6vw, 30px);
+      letter-spacing: .08em;
+      flex: none
+    }
+
+    .led-t small {
+      display: block;
+      font-family: var(--mono);
+      font-weight: 400;
+      font-size: 9.5px;
+      letter-spacing: .34em;
+      color: #B4A481;
+      margin-top: 6px
+    }
+
+    .led-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(120px, 1fr));
+      gap: clamp(18px, 3vw, 40px);
+      flex: 1
+    }
+
+    .led {
+      border-left: 1px solid rgba(239, 229, 206, .22);
+      padding-left: 20px
+    }
+
+    .led b {
+      display: block;
+      font-family: 'Fraunces', var(--serif);
+      font-weight: 500;
+      font-size: clamp(34px, 4.2vw, 54px);
+      line-height: 1.1
+    }
+
+    .led span {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: .26em;
+      color: #B4A481
+    }
+
+    /* ============ 13 · 页脚 ============ */
+    footer {
+      border-top: 1px solid var(--line);
+      padding: clamp(48px, 6vw, 72px) clamp(16px, 4vw, 48px) 26px
+    }
+
+    .f-in {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1.15fr 1fr 1.2fr;
+      gap: clamp(28px, 4vw, 56px)
+    }
+
+    .f-in h5 {
+      font-family: var(--mono);
+      font-size: 10.5px;
+      letter-spacing: .3em;
+      color: var(--ink2);
+      margin-bottom: 16px
+    }
+
+    .f-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px
+    }
+
+    .f-brand b {
+      font-family: var(--serif);
+      font-weight: 900;
+      font-size: 18px
+    }
+
+    .f-in p {
+      font-size: 13px;
+      color: var(--ink2)
+    }
+
+    .swatches {
+      display: flex;
+      gap: 8px;
+      margin-top: 16px
+    }
+
+    .sw {
+      width: 22px;
+      height: 22px;
+      border-radius: 3px;
+      border: 1px solid rgba(0, 0, 0, .15)
+    }
+
+    .f-list {
+      list-style: none;
+      display: grid;
+      gap: 10px
+    }
+
+    .f-list li {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 13px;
+      color: var(--ink2)
+    }
+
+    kbd {
+      font-family: var(--mono);
+      font-size: 10.5px;
+      border: 1px solid var(--line2);
+      border-bottom-width: 2px;
+      border-radius: 3px;
+      padding: 2px 7px;
+      background: var(--paper2);
+      white-space: nowrap;
+      color: var(--ink)
+    }
+
+    .f-deploy code {
+      font-family: var(--mono);
+      font-size: 11.5px;
+      color: var(--accent);
+      background: var(--paper2);
+      padding: 1px 6px;
+      border-radius: 3px
+    }
+
+    .f-bot {
+      max-width: 1200px;
+      margin: 44px auto 0;
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      flex-wrap: wrap;
+      font-family: var(--mono);
+      font-size: 10.5px;
+      letter-spacing: .14em;
+      color: var(--ink2)
+    }
+
+    /* ============ 14 · 书目页 ============ */
+    .crumbs {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 26px clamp(16px, 4vw, 48px) 0;
+      font-family: var(--mono);
+      font-size: 11.5px;
+      color: var(--ink2);
+      letter-spacing: .12em
+    }
+
+    .crumbs a {
+      transition: color .2s
+    }
+
+    .crumbs a:hover {
+      color: var(--accent)
+    }
+
+    .book-head {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: minmax(200px, 280px) minmax(0, 1fr);
+      gap: clamp(28px, 5vw, 64px);
+      align-items: start;
+      padding: 36px clamp(16px, 4vw, 48px) 50px
+    }
+
+    .book-head .cover {
+      transform: rotate(-1.6deg);
+      transition: transform .45s cubic-bezier(.2, .7, .2, 1)
+    }
+
+    .book-head .cover:hover {
+      transform: rotate(0) translateY(-8px)
+    }
+
+    .tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px
+    }
+
+    .tag {
+      font-family: var(--mono);
+      font-size: 10.5px;
+      letter-spacing: .16em;
+      padding: 4px 11px;
+      border: 1px solid var(--line2);
+      border-radius: 2px;
+      color: var(--ink2)
+    }
+
+    .tag.solid {
+      color: #F4EDDA;
+      border-color: transparent
+    }
+
+    .tag.rd {
+      color: var(--accent);
+      border-color: var(--accent)
+    }
+
+    .book-title {
+      font-family: var(--serif);
+      font-weight: 900;
+      font-size: clamp(30px, 4.6vw, 54px);
+      line-height: 1.18;
+      margin: 14px 0 6px;
+      letter-spacing: .02em
+    }
+
+    .book-en {
+      font-family: var(--mono);
+      font-size: 10.5px;
+      letter-spacing: .32em;
+      color: var(--ink2)
+    }
+
+    .book-sub {
+      font-family: var(--serif);
+      font-size: 16.5px;
+      margin-top: 12px
+    }
+
+    .book-intro {
+      margin-top: 14px;
+      color: var(--ink2);
+      font-size: 14.5px;
+      max-width: 54em
+    }
+
+    .bmeta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: clamp(20px, 3vw, 44px);
+      margin-top: 28px;
+      padding-top: 22px;
+      border-top: 1px solid var(--line)
+    }
+
+    .bmeta div span {
+      display: block;
+      font-family: var(--mono);
+      font-size: 9.5px;
+      letter-spacing: .26em;
+      color: var(--ink2);
+      margin-bottom: 5px
+    }
+
+    .bmeta div b {
+      font-family: var(--serif);
+      font-size: 18px;
+      font-weight: 700
+    }
+
+    .bprog {
+      margin-top: 24px;
+      max-width: 520px
+    }
+
+    .bact {
+      margin-top: 28px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px
+    }
+
+    .toc-wrap {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 250px minmax(0, 1fr);
+      gap: clamp(28px, 4vw, 52px);
+      align-items: start;
+      padding: 8px clamp(16px, 4vw, 48px) 100px
+    }
+
+    .toc-side {
+      position: sticky;
+      top: calc(var(--head-h) + 26px)
+    }
+
+    .volnav {
+      border: 1px solid var(--line);
+      background: var(--paper2);
+      border-radius: 4px;
+      padding: 18px 20px
+    }
+
+    .volnav h6 {
+      font-family: var(--mono);
+      font-size: 9.5px;
+      letter-spacing: .3em;
+      color: var(--ink2);
+      margin-bottom: 12px
+    }
+
+    .volnav a {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 9px 0;
+      border-bottom: 1px dashed var(--line);
+      color: var(--ink);
+      transition: .2s
+    }
+
+    .volnav a:last-of-type {
+      border-bottom: 0
+    }
+
+    .volnav a:hover {
+      color: var(--accent);
+      padding-left: 5px
+    }
+
+    .volnav a span {
+      color: var(--ink2)
+    }
+
+    .vn-prog {
+      margin-top: 14px
+    }
+
+    .chs .vol {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-family: var(--mono);
+      font-size: 11.5px;
+      letter-spacing: .2em;
+      color: var(--accent);
+      margin: 38px 0 8px
+    }
+
+    .chs .vol::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: var(--line)
+    }
+
+    .chs .vol:first-child {
+      margin-top: 6px
+    }
+
+    .ch {
+      display: grid;
+      grid-template-columns: 52px minmax(0, 1fr) auto 30px;
+      gap: 18px;
+      align-items: center;
+      padding: 16px 10px;
+      border-bottom: 1px solid var(--line);
+      cursor: pointer;
+      transition: background .25s, transform .25s
+    }
+
+    .ch:hover {
+      background: var(--paper2);
+      transform: translateX(4px)
+    }
+
+    .ch-no {
+      font-family: var(--mono);
+      font-size: 15px;
+      color: var(--ink2);
+      transition: color .25s
+    }
+
+    .ch:hover .ch-no {
+      color: var(--accent)
+    }
+
+    .ch-b b {
+      display: block;
+      font-family: var(--serif);
+      font-weight: 700;
+      font-size: 16.5px;
+      letter-spacing: .02em
+    }
+
+    .ch-b i {
+      display: block;
+      font-style: normal;
+      font-size: 12.5px;
+      color: var(--ink2);
+      margin-top: 3px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap
+    }
+
+    .ch-m {
+      font-family: var(--mono);
+      font-size: 10.5px;
+      color: var(--ink2);
+      white-space: nowrap;
+      text-align: right
+    }
+
+    .ch-st {
+      text-align: center;
+      font-family: var(--serif)
+    }
+
+    .ch.done .ch-st::before {
+      content: "已";
+      display: inline-block;
+      background: var(--accent);
+      color: #F7F0DF;
+      font-size: 10px;
+      padding: 3px 4px;
+      border-radius: 2px;
+      transform: rotate(-7deg)
+    }
+
+    .ch.cur .ch-st::before {
+      content: "";
+      display: inline-block;
+      width: 9px;
+      height: 9px;
+      background: var(--accent);
+      border-radius: 50%;
+      animation: pulse 2s infinite
+    }
+
+    .ch.todo .ch-st::before {
+      content: "○";
+      color: var(--line2);
+      font-size: 12px
+    }
+
+    .ch.cur {
+      background: color-mix(in srgb, var(--accent) 6%, transparent)
+    }
+
+    /* ============ 15 · 阅读页 ============ */
+    .reader-top {
+      position: sticky;
+      top: var(--head-h);
+      z-index: 40;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: var(--paper);
+      border-bottom: 1px solid var(--line);
+      padding: 10px clamp(14px, 3vw, 32px);
+      font-family: var(--mono);
+      font-size: 12px
+    }
+
+    .rt-back {
+      color: var(--ink2);
+      transition: .2s;
+      white-space: nowrap
+    }
+
+    .rt-back:hover {
+      color: var(--accent)
+    }
+
+    .rt-mid {
+      margin: 0 auto;
+      color: var(--ink2);
+      letter-spacing: .1em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 44%
+    }
+
+    .rt-tools {
+      display: flex;
+      gap: 6px
+    }
+
+    .rprog {
+      position: fixed;
+      top: var(--head-h);
+      left: 0;
+      height: 2.5px;
+      width: 0;
+      background: var(--accent);
+      z-index: 45
+    }
+
+    .reader-grid {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 225px minmax(0, 1fr);
+      gap: clamp(28px, 4vw, 56px);
+      padding: 44px clamp(14px, 3vw, 32px) 110px
+    }
+
+    .rtoc {
+      position: sticky;
+      top: calc(var(--head-h) + 70px);
+      align-self: start;
+      max-height: calc(100vh - var(--head-h) - 100px);
+      overflow: auto;
+      font-family: var(--mono);
+      font-size: 12px;
+      padding-right: 6px
+    }
+
+    .rtoc h5 {
+      font-size: 9.5px;
+      letter-spacing: .32em;
+      color: var(--ink2);
+      margin-bottom: 12px
+    }
+
+    .rtoc a {
+      display: block;
+      padding: 6px 0 6px 14px;
+      border-left: 1px solid var(--line);
+      color: var(--ink2);
+      transition: .2s;
+      line-height: 1.5
+    }
+
+    .rtoc a.l3 {
+      padding-left: 28px;
+      font-size: 11px
+    }
+
+    .rtoc a:hover {
+      color: var(--ink)
+    }
+
+    .rtoc a.on {
+      color: var(--accent);
+      border-color: var(--accent)
+    }
+
+    .rtoc-p {
+      margin-top: 18px;
+      padding-top: 14px;
+      border-top: 1px solid var(--line);
+      color: var(--ink2);
+      font-size: 11px
+    }
+
+    .rtoc-p b {
+      color: var(--accent)
+    }
+
+    .prose {
+      max-width: 720px;
+      font-family: var(--serif);
+      font-size: var(--prose-fs);
+      line-height: 1.98;
+      counter-reset: h2
+    }
+
+    .art-kicker {
+      font-family: var(--mono);
+      font-size: 10.5px;
+      letter-spacing: .3em;
+      color: var(--accent)
+    }
+
+    .art-title {
+      font-family: var(--serif);
+      font-weight: 900;
+      font-size: clamp(28px, 3.8vw, 44px);
+      line-height: 1.28;
+      margin: 14px 0 16px;
+      letter-spacing: .02em
+    }
+
+    .art-meta {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px 16px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--ink2)
+    }
+
+    .stamp {
+      font-family: var(--serif);
+      font-size: 11px;
+      color: var(--accent);
+      border: 1.5px solid var(--accent);
+      border-radius: 3px;
+      padding: 2px 6px;
+      transform: rotate(-4deg);
+      letter-spacing: .2em
+    }
+
+    .art-rule {
+      margin: 28px 0 32px;
+      height: 1px;
+      background: var(--line);
+      position: relative
+    }
+
+    .art-rule::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 7px;
+      height: 7px;
+      background: var(--accent);
+      transform: translate(-50%, -50%) rotate(45deg)
+    }
+
+    .prose p {
+      margin: 1em 0;
+      text-align: justify
+    }
+
+    .prose h2 {
+      font-size: 1.4em;
+      font-weight: 900;
+      margin: 2.1em 0 .85em;
+      padding-left: 1.5em;
+      position: relative;
+      line-height: 1.45;
+      scroll-margin-top: 110px
+    }
+
+    .prose h2::before {
+      counter-increment: h2;
+      content: counter(h2, cjk-ideographic) "、";
+      position: absolute;
+      left: 0;
+      color: var(--accent);
+      font-size: .85em
+    }
+
+    .prose h3 {
+      font-size: 1.14em;
+      font-weight: 700;
+      margin: 1.7em 0 .6em;
+      scroll-margin-top: 110px
+    }
+
+    .prose h3::before {
+      content: "◆ ";
+      color: var(--gold);
+      font-size: .7em;
+      vertical-align: 2px
+    }
+
+    #artBody>p:first-of-type::first-letter {
+      font-size: 3.1em;
+      font-weight: 900;
+      color: var(--accent);
+      float: left;
+      line-height: 1;
+      padding: .06em .14em 0 0
+    }
+
+    .prose ul,
+    .prose ol {
+      padding-left: 1.5em;
+      margin: 1em 0
+    }
+
+    .prose li {
+      margin: .5em 0
+    }
+
+    .prose li::marker {
+      color: var(--accent);
+      font-weight: 700
+    }
+
+    .prose blockquote {
+      margin: 1.7em 0;
+      padding: 15px 22px;
+      border-left: 3px solid var(--accent);
+      background: var(--paper2);
+      color: var(--ink2);
+      font-size: .94em;
+      border-radius: 0 4px 4px 0
+    }
+
+    .prose blockquote p {
+      margin: .2em 0
+    }
+
+    .prose hr {
+      border: 0;
+      height: 1px;
+      background: var(--line);
+      width: 40%;
+      margin: 2.6em auto;
+      position: relative
+    }
+
+    .prose hr::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 6px;
+      height: 6px;
+      background: var(--line2);
+      transform: translate(-50%, -50%) rotate(45deg)
+    }
+
+    .prose a {
+      color: var(--accent);
+      text-decoration: underline;
+      text-underline-offset: 4px
+    }
+
+    .prose code {
+      font-family: var(--mono);
+      font-size: .8em;
+      background: var(--paper2);
+      border: 1px solid var(--line);
+      padding: 2px 7px;
+      border-radius: 3px
+    }
+
+    figure.code {
+      margin: 1.9em 0;
+      background: var(--code-bg);
+      border-radius: 6px;
+      overflow: hidden;
+      box-shadow: 0 16px 32px -18px rgba(10, 6, 2, .55)
+    }
+
+    figure.code figcaption {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--code-bar);
+      padding: 8px 15px;
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: .2em;
+      color: #B9A985
+    }
+
+    figure.code .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent)
+    }
+
+    figure.code .copy {
+      margin-left: auto;
+      font-family: var(--mono);
+      font-size: 10px;
+      color: #B9A985;
+      border: 1px solid rgba(185, 169, 133, .35);
+      padding: 3px 11px;
+      border-radius: 3px;
+      transition: .25s
+    }
+
+    figure.code .copy:hover {
+      color: #F4EDDA;
+      border-color: var(--accent)
+    }
+
+    figure.code pre {
+      padding: 18px 20px;
+      overflow: auto
+    }
+
+    figure.code code {
+      background: none;
+      border: 0;
+      padding: 0;
+      font-size: 13px;
+      line-height: 1.75;
+      color: var(--code-tx)
+    }
+
+    .prose table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1.9em 0;
+      font-family: var(--sans);
+      font-size: .86em
+    }
+
+    .prose th {
+      font-family: var(--mono);
+      font-size: .78em;
+      letter-spacing: .1em;
+      text-align: left;
+      background: var(--paper2);
+      padding: 11px 14px;
+      border: 1px solid var(--line)
+    }
+
+    .prose td {
+      padding: 11px 14px;
+      border: 1px solid var(--line);
+      vertical-align: top
+    }
+
+    .art-end {
+      margin-top: 64px;
+      display: flex;
+      justify-content: center
+    }
+
+    .art-nav {
+      margin-top: 30px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px
+    }
+
+    .an {
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 17px 20px;
+      transition: .3s;
+      cursor: pointer;
+      display: block
+    }
+
+    .an:hover {
+      background: var(--paper2);
+      transform: translateY(-3px);
+      box-shadow: var(--shadow)
+    }
+
+    .an small {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: .24em;
+      color: var(--ink2)
+    }
+
+    .an b {
+      display: block;
+      font-family: var(--serif);
+      font-size: 15.5px;
+      margin-top: 7px;
+      font-weight: 700
+    }
+
+    .an.next {
+      text-align: right
+    }
+
+    .an.off {
+      opacity: .35;
+      pointer-events: none
+    }
+
+    /* ============ 16 · 检索面板 ============ */
+    .pal {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      background: rgba(22, 16, 8, .5);
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 13vh 16px 20px
+    }
+
+    .pal[hidden] {
+      display: none
+    }
+
+    .pal-box {
+      width: min(650px, 94vw);
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      box-shadow: 0 40px 80px -20px rgba(10, 6, 2, .55);
+      overflow: hidden;
+      animation: palIn .2s cubic-bezier(.2, .7, .2, 1)
+    }
+
+    @keyframes palIn {
+      from {
+        opacity: 0;
+        transform: translateY(-14px) scale(.98)
+      }
+
+      to {
+        opacity: 1;
+        transform: none
+      }
+    }
+
+    .pal-box input {
+      width: 100%;
+      padding: 19px 22px;
+      font-family: var(--mono);
+      font-size: 15px;
+      background: transparent;
+      border: 0;
+      border-bottom: 1px solid var(--line);
+      color: var(--ink);
+      outline: none
+    }
+
+    .pal-box input::placeholder {
+      color: var(--ink2)
+    }
+
+    .pal-list {
+      max-height: 46vh;
+      overflow: auto;
+      padding: 8px
+    }
+
+    .pal-it {
+      display: flex;
+      align-items: center;
+      gap: 13px;
+      padding: 11px 14px;
+      border-radius: 4px;
+      cursor: pointer
+    }
+
+    .pal-it.on,
+    .pal-it:hover {
+      background: var(--paper2)
+    }
+
+    .pal-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 2px;
+      flex: none;
+      transform: rotate(45deg)
+    }
+
+    .pal-t {
+      flex: 1;
+      min-width: 0
+    }
+
+    .pal-t b {
+      display: block;
+      font-family: var(--serif);
+      font-size: 14.5px;
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis
+    }
+
+    .pal-t span {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--ink2);
+      letter-spacing: .14em
+    }
+
+    .pal-k {
+      font-family: var(--mono);
+      font-size: 10.5px;
+      color: var(--ink2)
+    }
+
+    .pal-foot {
+      padding: 11px 18px;
+      border-top: 1px solid var(--line);
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: .16em;
+      color: var(--ink2)
+    }
+
+    .pal-none {
+      padding: 30px;
+      text-align: center;
+      color: var(--ink2);
+      font-family: var(--serif)
+    }
+
+    /* ============ 17 · 提示 ============ */
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 32px;
+      transform: translate(-50%, 16px);
+      z-index: 130;
+      background: var(--ink);
+      color: var(--paper);
+      font-family: var(--mono);
+      font-size: 12px;
+      letter-spacing: .1em;
+      padding: 11px 22px;
+      border-radius: 3px;
+      box-shadow: var(--shadow);
+      opacity: 0;
+      pointer-events: none;
+      transition: .35s
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translate(-50%, 0)
+    }
+
+    /* ============ 18 · 响应式 ============ */
+    @media (max-width:1020px) {
+      .toc-wrap {
+        grid-template-columns: 1fr
+      }
+
+      .toc-side {
+        position: static
+      }
+
+      .volnav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 22px;
+        align-items: center
+      }
+
+      .volnav h6 {
+        width: 100%;
+        margin-bottom: 6px
+      }
+
+      .volnav a {
+        border-bottom: 0;
+        padding: 5px 0
+      }
+
+      .vn-prog {
+        width: 100%
+      }
+
+      .reader-grid {
+        grid-template-columns: 1fr
+      }
+
+      .rtoc {
+        position: static;
+        max-height: none;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 2px 18px;
+        border-bottom: 1px solid var(--line);
+        padding: 0 0 14px;
+        margin-bottom: 6px
+      }
+
+      .rtoc h5,
+      .rtoc-p {
+        display: none
+      }
+
+      .rtoc a {
+        border-left: 0;
+        padding: 4px 0;
+        font-size: 11.5px
+      }
+    }
+
+    @media (max-width:860px) {
+      .tnav {
+        display: none
+      }
+
+      .mast {
+        grid-template-columns: 1fr
+      }
+
+      .mast-side {
+        display: none
+      }
+
+      .mast-seal {
+        width: 60px;
+        height: 60px;
+        font-size: 17px
+      }
+
+      .resume {
+        grid-template-columns: 1fr
+      }
+
+      .resume-cover {
+        max-width: 230px
+      }
+
+      .book-head {
+        grid-template-columns: 1fr
+      }
+
+      .book-head .cover {
+        max-width: 230px
+      }
+
+      .led-grid {
+        grid-template-columns: repeat(2, 1fr)
+      }
+
+      .f-in {
+        grid-template-columns: 1fr
+      }
+
+      .ch {
+        grid-template-columns: 40px minmax(0, 1fr) 30px
+      }
+
+      .ch-m {
+        display: none
+      }
+
+      .art-nav {
+        grid-template-columns: 1fr
+      }
+
+      .an.next {
+        text-align: left
+      }
+    }
+
+    @media (max-width:560px) {
+      .lib-search {
+        margin-left: 0;
+        width: 100%
+      }
+
+      .lib-search input {
+        width: 100%
+      }
+
+      .lib-search input:focus {
+        width: 100%
+      }
+
+      .mast-meta {
+        gap: 8px 14px
+      }
+
+      .posts {
+        justify-content: center
+      }
+    }
+
+    /* ============ 19 · 降级动效 ============ */
+    @media (prefers-reduced-motion:reduce) {
+
+      *,
+      *::before,
+      *::after {
+        animation: none !important;
+        transition: none !important
+      }
+
+      html {
+        scroll-behavior: auto
+      }
+
+      .rv {
+        opacity: 1;
+        transform: none
+      }
+
+      .uline path {
+        stroke-dashoffset: 0
+      }
+
+      .bar i {
+        transition: none
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <a class="skip" href="#app">跳到正文</a>
+
+  <header class="topbar" id="topbar">
+    <a class="brand" href="#/" data-go="#/" aria-label="回到书房">
+      <span class="seal" aria-hidden="true">拾</span>
+      <span class="bw"><b>拾阶</b><i>STEPWELL · 研读库</i></span>
+    </a>
+    <nav class="tnav" aria-label="主导航">
+      <a href="#/" data-go="#/">书房</a>
+      <a href="#shelf" data-nav="#shelf">书架</a>
+      <a href="#journal" data-nav="#journal">手记</a>
+    </nav>
+    <div class="tools">
+      <button class="ibtn" data-pal aria-label="全局检索">
+        <svg viewBox="0 0 24 24">
+          <circle cx="11" cy="11" r="7" />
+          <path d="m20 20-3.8-3.8" />
+        </svg>
+        <span class="k">K</span>
+      </button>
+      <button class="ibtn" data-theme aria-label="切换明暗主题" id="themeBtn">
+        <svg viewBox="0 0 24 24" id="icoMoon">
+          <path d="M20 13.5A8.5 8.5 0 1 1 10.5 4 6.8 6.8 0 0 0 20 13.5Z" />
+        </svg>
+        <svg viewBox="0 0 24 24" id="icoSun" hidden>
+          <circle cx="12" cy="12" r="4.4" />
+          <path
+            d="M12 2.5v2.4M12 19.1v2.4M2.5 12h2.4M19.1 12h2.4M5 5l1.7 1.7M17.3 17.3 19 19M19 5l-1.7 1.7M6.7 17.3 5 19" />
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main id="app" data-view="home" aria-live="polite"></main>
+
+  <footer>
+    <div class="f-in">
+      <div>
+        <div class="f-brand"><span class="seal" aria-hidden="true">拾</span><b>拾阶 · STEPWELL</b></div>
+        <p>把每一次学习读成一套书。AI 生成的系列文章，在这里按书目、卷册、章节安放，随时可以回到上次的现场。</p>
+        <div class="swatches" aria-hidden="true">
+          <span class="sw" style="background:#F4EFE3"></span><span class="sw" style="background:#221B12"></span>
+          <span class="sw" style="background:#B23A26"></span><span class="sw" style="background:#A87B2F"></span>
+          <span class="sw" style="background:#2E4B57"></span><span class="sw" style="background:#3C5A46"></span>
+          <span class="sw" style="background:#5A3A5E"></span><span class="sw" style="background:#A5702D"></span>
+        </div>
+      </div>
+      <div>
+        <h5>快捷键 · SHORTCUTS</h5>
+        <ul class="f-list">
+          <li><span>全局检索</span><span><kbd>⌘ / Ctrl K</kbd> <kbd>/</kbd></span></li>
+          <li><span>上一讲 / 下一讲</span><span><kbd>←</kbd> <kbd>→</kbd></span></li>
+          <li><span>明暗主题</span><kbd>T</kbd></li>
+          <li><span>关闭面板</span><kbd>Esc</kbd></li>
+        </ul>
+      </div>
+      <div class="f-deploy">
+        <h5>部署与接入 · DEPLOY</h5>
+        <p>纯静态单文件，Netlify 拖拽即发布。把 AI 生成的文章放入 <code>content/&lt;书目&gt;/ch01.md</code>，在章节数据里写上 <code>src</code>
+          即可自动拉取渲染；无 <code>src</code> 时使用内联示例正文。</p>
+      </div>
+    </div>
+    <div class="f-bot">
+      <span>© 拾阶 STEPWELL · 以书为径，步步为营</span>
+      <span>STATIC · NETLIFY READY · MARKDOWN NATIVE</span>
+    </div>
+  </footer>
+
+  <!-- 全局检索面板 -->
+  <div class="pal" id="pal" hidden role="dialog" aria-modal="true" aria-label="全局检索">
+    <div class="pal-box">
+      <input id="palInput" type="text" placeholder="检索书目与章节 —— 试试「记忆」「时态」「ReAct」…" autocomplete="off">
+      <div class="pal-list" id="palList"></div>
+      <div class="pal-foot">↑↓ 选择 · ENTER 打开 · ESC 关闭</div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status"></div>
+
+  <script>
+    /* ══════════ 00 · 工具 ══════════ */
+    const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+    const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const pad = n => String(n + 1).padStart(2, '0');
+    const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+    /* ══════════ 01 · 书目数据（新增系列 = 追加一个对象） ══════════ */
+    const C = (t, s, p) => ({ t, s, p, m: 8 + (t.length * 7) % 9, w: 2400 + (t.length * 137) % 2300 });
+    const BOOKS = [
+      {
+        id: 'agent', no: '01', title: '智能体设计模式', en: 'AGENT DESIGN PATTERNS', pt: 'pt-a', hue: '#2E4B57', hue2: '#1E3540',
+        cat: '智能体', level: '进阶', updated: '2025 · 夏',
+        sub: '从 ReAct 到多智能体编排 · 十六讲',
+        intro: '以「模式语言」的方式整理智能体工程：每个模式都给出适用场景、最小实现与失败案例，十六讲读完，足以搭起你自己的智能体骨架。',
+        vols: [
+          {
+            t: '卷一 · 感知与循环', chs: [
+              C('什么是智能体', '感知—决策—行动的最小循环，以及它与普通聊天机器人的分界线。', ['循环三要素：传感器、策略器、执行器', '一个三十行的玩具智能体', '什么时候不该用智能体']),
+              C('Prompt 作为运行时', '把提示词当作程序来设计：角色、约束与上下文预算。', ['角色设定的边界与副作用', '约束的三种写法', '上下文预算表']),
+              C('ReAct 模式', '推理与行动交织的经典循环，从论文到可运行代码。', ['Thought–Action–Observation 轨迹', '循环何时终止', '常见失败轨迹分析']),
+              C('工具调用协议', 'Function Calling、MCP 与自定义协议的取舍。', ['工具描述的写法决定调用质量', '三种协议路线对比', '错误处理是协议的一部分'])]
+          },
+          {
+            t: '卷二 · 记忆与状态', chs: [
+              C('工作记忆与上下文治理', '上下文窗口是最贵的资源：压缩、淘汰与优先级。', ['滑动窗口与摘要压缩', '重要性评分', '治理策略对照']),
+              C('长期记忆', '向量库只是起点：写入时机、检索时机与遗忘。', ['记忆写入的触发器', '检索增强的三种形态', '遗忘与去重']),
+              C('情景记忆与知识图谱', '用结构化记忆回答「上次我们是怎么解决的」。', ['事件抽取', '图结构与三元组', '混合召回'])]
+          },
+          {
+            t: '卷三 · 规划与执行', chs: [
+              C('任务分解', '把大目标切成可验证的小步骤。', ['分解粒度的判断', '思维树与线性分解', '验证点的设置']),
+              C('计划—执行—反思', 'Plan-and-Execute 循环的工程实现。', ['计划器的输出契约', '执行偏差检测', '重规划的触发条件']),
+              C('自我批评与验证者', '让智能体检查自己：批评者模式与外部校验。', ['批评者提示词', '单元测试作为验证器', '成本与收益的平衡'])]
+          },
+          {
+            t: '卷四 · 多智能体系统', chs: [
+              C('编排拓扑', '管道、群聊、监督者：三种拓扑的适用边界。', ['拓扑速查表', '消息路由', '死锁与绕圈的识别']),
+              C('角色分工与通信', '多智能体的契约设计：谁来说、说什么、以什么格式。', ['角色卡模板', '结构化消息', '冲突消解策略']),
+              C('人机协同', '介入点设计：什么时候应该停下来问人。', ['置信度闸门', '审批流', '回滚策略']),
+              C('评估智能体', '给智能体一场考试：题库、指标与回归。', ['任务集构建', '轨迹评分', '回归看板']),
+              C('部署与可观测性', '上线之后：追踪、回放与成本控制。', ['Trace 字段设计', '回放调试', '成本预算']),
+              C('结语：十条军规', '把全书收束为一张可以贴在工位上的清单。', ['军规逐条解读', '反模式清单', '下一步路线图'])]
+          }
+        ]
+      },
+      {
+        id: 'deeptutor', no: '02', title: 'DeepTutor 源码精读', en: 'READING DEEPTUTOR', pt: 'pt-b', hue: '#3C5A46', hue2: '#28402F',
+        cat: '源码研读', level: '从零到一', updated: '2025 · 夏',
+        sub: '从 git clone 到画出架构图 · 十二讲',
+        intro: '把一个真实开源项目当作教材：从跑起来到画出架构图，逐模块精读 DeepTutor，把「读源码」练成一门手艺。',
+        vols: [
+          {
+            t: '卷一 · 地基', chs: [
+              C('开篇：为什么读 DeepTutor', '选一个真实项目当教材：读源码的方法论与本书路线。', ['源码阅读的三种姿势', '如何挑选学习对象', '全书路线图']),
+              C('环境搭建与仓库地图', '跑起来是第一步：依赖、脚本与目录导览。', ['最小可运行环境', '目录导览', '跑通第一次问答']),
+              C('入口与启动流程', '从 main 函数开始，追一次完整的冷启动。', ['仓库地图：目录即架构', '一次冷启动的四个阶段', '启动脚本与配置项']),
+              C('文档加载与分块', '解析器、清洗与分块策略的管线源码。', ['解析器抽象', '清洗管线', '分块策略对照']),
+              C('嵌入与向量存储', 'Embedding 抽象层与可插拔存储后端。', ['嵌入接口设计', '存储后端适配', '批量与缓存']),
+              C('检索器实现', '稠密、稀疏与混合检索的源码细节。', ['三种检索器', '评分与重排', '召回质量调试'])]
+          },
+          {
+            t: '卷二 · 上层', chs: [
+              C('RAG 主链路走读', '一次提问的完整旅程：检索—组装—生成。', ['请求生命周期', '上下文组装', '引用溯源']),
+              C('Agent 层', '工具注册、循环调度与异常处理。', ['工具注册表', '调度循环', '异常与降级']),
+              C('对话状态与流式', '会话管理与流式输出的工程实现。', ['会话状态机', '流式协议', '中断与续传']),
+              C('评估与回放', '内置评估集与请求回放机制。', ['评估集设计', '回放录制', '指标看板']),
+              C('二次开发实战', '替换模型、换存储、加一门新工具。', ['替换语言模型', '接入新存储', '自定义工具']),
+              C('复盘：架构取舍', '把读到的设计整理成自己的取舍清单。', ['取舍清单', '可迁移的模式', '延伸阅读'])]
+          }
+        ]
+      },
+      {
+        id: 'pi', no: '03', title: 'π-智能体内核拆解', en: 'THE PI AGENT KERNEL', pt: 'pt-c', hue: '#5A3A5E', hue2: '#3D2742',
+        cat: '源码研读', level: '从零到一', updated: '2025 · 秋',
+        sub: '两百行核心循环的逐行精读 · 九讲',
+        intro: 'π-智能体以两百行核心循环著称。本系列逐行拆解其内核、工具沙箱与插件机制，最后把这套内核移植进你自己的项目。',
+        vols: [
+          {
+            t: '卷一 · 内核', chs: [
+              C('π 是什么', '一个刻意保持极小的智能体内核：设计哲学速览。', ['极简主义的动机', '内核边界', '与主流框架的差异']),
+              C('仓库结构与构建', '目录地图、构建脚本与开发循环。', ['目录地图', '构建与测试', '本地开发循环']),
+              C('核心循环逐行读', '两百行 Loop：状态机的每个分支。', ['循环骨架', '状态分支', '终止条件']),
+              C('提示词装配器', '模板、变量与作用域：Prompt 的编译过程。', ['模板语法', '作用域规则', '编译与缓存']),
+              C('工具与沙箱', '工具注册、权限与隔离执行。', ['注册协议', '权限模型', '隔离执行'])]
+          },
+          {
+            t: '卷二 · 生态', chs: [
+              C('上下文压缩', '超窗策略：摘要、裁剪与钉子消息。', ['三种压缩策略', '钉子消息', '压缩时机']),
+              C('事件流与观测', '一切皆事件：总线、订阅与追踪。', ['事件总线', '订阅模式', '追踪集成']),
+              C('插件机制', '钩子点与生命周期：写第一个插件。', ['钩子点清单', '生命周期', '实战：一个插件']),
+              C('移植笔记', '把 π 的内核搬进你自己的项目。', ['最小移植路径', '适配层设计', '踩坑记录'])]
+          }
+        ]
+      },
+      {
+        id: 'english', no: '04', title: '英语阶梯', en: 'ENGLISH LADDER', pt: 'pt-b', hue: '#A5702D', hue2: '#7A4F1D',
+        cat: '语言', level: '分阶段', updated: '2025 · 夏',
+        sub: '从语音入门到即兴表达 · 十三讲',
+        intro: '按「基础—进阶—流利」三段阶梯组织的英语自学路线：每一讲都配可执行的训练计划，而不是空洞的方法论。',
+        vols: [
+          {
+            t: '卷一 · 基础 BASE', chs: [
+              C('语音与拼读', '四十四个音素与拼读规则，重建嘴巴的肌肉记忆。', ['音素地图', '拼读规则', '每日口部操']),
+              C('核心词汇织网', '用词族与场景把一千个高频词织成一张网。', ['词族：一词多形的杠杆', '场景织网法', '间隔复习计划']),
+              C('时态时间轴', '十二种时态先画成一条时间轴，再谈规则。', ['时间轴模型', '四大象限', '高频错误诊断']),
+              C('句型骨架', '五大基本句型与替换操练。', ['五大句型', '替换操练', '扩句练习']),
+              C('精听入门', '慢速材料三步精听法。', ['选料标准', '三步精听', '听写复盘'])]
+          },
+          {
+            t: '卷二 · 进阶 BRIDGE', chs: [
+              C('从句地图', '三大从句一张地图，先认路再记规则。', ['三大从句', '连接词选择', '长句拆解']),
+              C('外刊精读法', '一篇文章读三遍的精读流程。', ['选篇标准', '三遍流程', '笔记模板']),
+              C('口语块思维', '用 chunks 代替单词造句。', ['语块清单', '影子模仿', '场景演练']),
+              C('段落写作', '从主题句到支撑句的段落工坊。', ['主题句', '支撑与衔接', '互改清单'])]
+          },
+          {
+            t: '卷三 · 流利 FLUENCY', chs: [
+              C('影子跟读', '四周影子跟读训练计划。', ['材料分级', '跟读节奏', '四周计划表']),
+              C('长难句拆解', '学术词汇与句法树。', ['句法树', '学术词表', '拆解练习']),
+              C('即兴表达', '两分钟即兴演讲的框架。', ['PREP 框架', '过渡语料', '录音复盘']),
+              C('认证路线', '备考规划与模拟测试节奏。', ['考试选择', '备考节奏', '模考策略'])]
+          }
+        ]
+      }
+    ];
+    const UPCOMING = [
+      { t: 'RAG 工程实战', d: '筹备中 · 预计秋季', n: '检索增强的工程化十二讲：评估、缓存与重排。' },
+      { t: 'Rust 系统编程', d: '筹备中 · 预计冬季', n: '从所有权心智模型到异步运行时的零到一。' },
+      { t: '线性代数的直觉', d: '选题中 · 未定档', n: '先几何后矩阵，用可视化工具重学线性代数。' }];
+    const JOURNAL = [
+      { d: '2025 · 深夜', t: '把记忆模块调通的那个晚上', s: 'study-lamp-night-desk', x: '向量检索总召回无关段落，最后发现是分块把上下文切碎了。换了带重叠的窗口，一切顺畅。' },
+      { d: '2025 · 午后', t: '纸质笔记回归', s: 'paper-notebook-sketch', x: '读源码时在纸上画调用图，比任何工具都快；画完再对着屏幕验证，错误一目了然。' },
+      { d: '2025 · 清晨', t: '在图书馆的一整天', s: 'library-atrium-morning', x: '把英语精读搬去图书馆。环境切换带来的专注度提升，比任何番茄钟都有效。' }];
+
+    /* 扁平化章节索引 */
+    BOOKS.forEach(bk => {
+      bk.chs = []; bk.vols.forEach(v => v.chs.forEach(c => { c.vol = v.t; c.idx = bk.chs.length; bk.chs.push(c) }));
+      bk.total = bk.chs.length; bk.words = bk.chs.reduce((a, c) => a + c.w, 0);
+    });
+    const SEED = { agent: [0, 1, 2, 3], deeptutor: [0, 1], pi: [], english: [0, 1, 2, 3] };
+
+    /* ══════════ 02 · 状态持久化 ══════════ */
+    const KEY = 'stepwell.v1';
+    let state = (() => {
+      try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.done) return s } catch (e) { }
+      return {
+        theme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light', fs: 1,
+        done: JSON.parse(JSON.stringify(SEED)), last: { b: 'agent', i: 4 }, first: Date.now()
+      }
+    })();
+    const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)) } catch (e) { } };
+    const isDone = (b, i) => (state.done[b] || []).includes(i);
+    const setDone = (b, i, v) => { const s = new Set(state.done[b] || []); v ? s.add(i) : s.delete(i); state.done[b] = [...s].sort((a, c) => a - c); save() };
+    const bDone = bk => bk.chs.filter(c => isDone(bk.id, c.idx)).length;
+    const bStatus = bk => { const d = bDone(bk); return d === bk.total ? '已读完' : d > 0 ? '在读' : '未开卷' };
+    const fmtW = n => n >= 10000 ? (n / 10000).toFixed(1) + ' 万字' : n.toLocaleString() + ' 字';
+    const streak = Math.max(1, Math.floor((Date.now() - state.first) / 864e5) + 1);
+    const today = (() => { const d = new Date(); return `${d.getFullYear()} 年 ${d.getMonth() + 1} 月 ${d.getDate()} 日 · 周${'日一二三四五六'[d.getDay()]}` })();
+
+    /* ══════════ 03 · 旗舰章节正文（手排 Markdown 示范） ══════════ */
+    const MD_TOOL = [
+      '> 协议决定上限：模型能多好地使用工具，很大程度上取决于你的协议设计，而不是模型本身。', '',
+      '## 工具描述即提示词', '',
+      '模型看到的不是你的函数实现，而是函数的**描述**。一份好的工具描述包含三件事：', '',
+      '- 这个工具*什么时候*应该被调用；', '- 每个参数的含义与取值边界；', '- 失败时会返回什么。', '',
+      '`description` 写得越接近「给新同事写的说明书」，调用质量越高。', '',
+      '## 一个最小可运行的例子', '', '```python',
+      'tools = [{', '    "name": "search_docs",',
+      '    "description": "在知识库中检索与查询相关的文档片段。当问题需要事实依据时调用。",',
+      '    "parameters": {', '        "type": "object",',
+      '        "properties": {', '            "query": {"type": "string", "description": "自然语言查询"},',
+      '            "top_k": {"type": "integer", "default": 5}', '        },',
+      '        "required": ["query"]","    }', '}]', '```', '',
+      '运行时的职责是：解析模型输出 → 校验参数 → 执行函数 → 把结果以 `tool` 角色回灌给模型。', '',
+      '## 三种协议路线对比', '',
+      '| 路线 | 约束位置 | 优点 | 代价 |', '| --- | --- | --- | --- |',
+      '| Function Calling | 模型服务端 | 结构化稳定 | 被供应商锁定 |',
+      '| MCP | 独立协议层 | 工具可复用、跨进程 | 多一层运维 |',
+      '| ReAct 文本协议 | 提示词 | 任何模型可用 | 解析脆弱 |', '',
+      '## 错误处理是协议的一部分', '',
+      '工具失败时，不要替模型掩盖错误。把错误原样返回，并附一句可读的解释——多数模型都懂得换个参数重试。', '',
+      '> 经验法则：**让失败显式化**，智能体才有自愈的可能。', '',
+      '## 本章小结', '',
+      '- 工具描述的质量 ≈ 调用成功率；', '- 三种协议路线按团队约束选择；', '- 错误回传是协议的一部分，不是异常。', '',
+      '## 练习', '',
+      '1. 给 `search_docs` 增加一个 `filter` 参数，观察模型是否正确学会使用它。',
+      '2. 故意让工具以一半概率失败，记录智能体的重试轨迹并分析。'].join('\n');
+
+    const MD_ENTRY = [
+      '> 读源码的第一原则：先跑起来，再谈理解。冷启动的调用链就是最好的导览图。', '',
+      '## 仓库地图：目录即架构', '', '```', 'deeptutor/',
+      '├── main.py            # 入口', '├── core/',
+      '│   ├── loader.py      # 文档加载与分块', '│   ├── embedder.py    # 嵌入抽象',
+      '│   └── retriever.py   # 检索器', '├── agent/',
+      '│   ├── loop.py        # 智能体循环', '│   └── tools/         # 工具集',
+      '└── eval/              # 评估与回放', '```', '',
+      '目录结构几乎就是架构图本身——这是挑选学习对象时最重要的信号。', '',
+      '## 一次冷启动的四个阶段', '',
+      '1. **加载配置**：`dev.yaml` 决定模型、存储与检索器；', '2. **构建索引**：文档被解析、分块并写入向量库；',
+      '3. **装配智能体**：注册工具，绑定检索器；', '4. **进入服务循环**：等待第一次提问。', '',
+      '## 动手：追一次启动', '', '```bash',
+      'git clone https://github.com/example/deeptutor', 'cd deeptutor && uv sync',
+      'uv run python main.py --config dev.yaml', '```', '',
+      '在四个阶段的入口各打一个断点，逐步放行，把经过的函数名抄在本讲笔记里。', '',
+      '## 模块职责速查', '',
+      '| 模块 | 职责 | 对应章节 |', '| --- | --- | --- |', '| loader | 文档进入系统的第一公里 | 第 4 讲 |',
+      '| retriever | 决定答案的上限 | 第 6 讲 |', '| loop | 智能体的心脏 | 第 8 讲 |', '',
+      '> 本讲之后，你手里应该有一张手绘调用链图。画不出来，就再跑一次断点。'].join('\n');
+
+    const MD_WORD = [
+      '> 背单词的低效，源于把词当作孤立的点。这一讲我们把它们织成网。', '',
+      '## 词族：一词多形的杠杆', '',
+      '掌握一个词族，等于同时记住三四个词。以 `act` 为例：', '',
+      '| 词形 | 词性 | 含义 |', '| --- | --- | --- |', '| act | 动词 | 行动 |',
+      '| action | 名词 | 行动，行为 |', '| active | 形容词 | 积极的 |',
+      '| activity | 名词 | 活动 |', '| actively | 副词 | 积极地 |', '',
+      '一千个高频词根，按词族展开足以覆盖日常阅读所需的大部分词汇量。', '',
+      '## 场景织网法', '',
+      '把词放进场景，而不是放进单词表。例如「通勤」场景：', '',
+      '- *platform*（站台）→ *carriage*（车厢）→ *transfer*（换乘）', '',
+      '场景内部的词会互相唤醒，记忆强度远高于字母序表。', '',
+      '## 间隔复习计划', '',
+      '1. 当日：新词织入场景，造句一条；', '2. 次日：只看场景回想词义；',
+      '3. 第七日：用五个新词写一段连贯的话。', '',
+      '> 判断标准：能在说话时主动用出来的词，才是你的词。'].join('\n');
+
+    BOOKS[0].vols[0].chs[3].md = MD_TOOL;
+    BOOKS[1].vols[0].chs[2].md = MD_ENTRY;
+    BOOKS[3].vols[0].chs[1].md = MD_WORD;
+
+    /* ══════════ 04 · Markdown 引擎 ══════════ */
+    let _hid = 0, _cid = 0;
+    function inlineMD(s) {
+      s = esc(s).replace(/`([^`]+)`/g, (m, c) => '\u0001' + c + '\u0002');
+      s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+      s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+      return s.replace(/\u0001([^\u0002]*)\u0002/g, '<code>$1</code>');
+    }
+    function tableMD(rows) {
+      const cells = r => r.replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+      let h = cells(rows[0]), body = rows.slice(1);
+      if (body.length && /^\|?[\s:|-]+\|?$/.test(body[0])) body = body.slice(1);
+      return '<table><thead><tr>' + h.map(c => '<th>' + inlineMD(c) + '</th>').join('') + '</tr></thead><tbody>' +
+        body.map(r => '<tr>' + cells(r).map(c => '<td>' + inlineMD(c) + '</td>').join('') + '</tr>').join('') + '</tbody></table>';
+    }
+    function renderMD(src) {
+      const L = src.replace(/\r\n/g, '\n').split('\n'); let out = '', i = 0, para = [], list = null;
+      const fp = () => { if (para.length) { out += '<p>' + inlineMD(para.join(' ')) + '</p>'; para = [] } };
+      const fl = () => { if (list) { out += '<' + list.t + '>' + list.i.map(x => '<li>' + inlineMD(x) + '</li>').join('') + '</' + list.t + '>'; list = null } };
+      while (i < L.length) {
+        const l = L[i]; let m;
+        if (/^```/.test(l)) {
+          fp(); fl(); const lang = l.slice(3).trim(); const buf = []; i++;
+          while (i < L.length && !/^```/.test(L[i])) { buf.push(L[i]); i++ } i++;
+          const id = 'cb' + (++_cid);
+          out += '<figure class="code"><figcaption><span class="dot"></span><span>' + esc(lang || 'text') +
+            '</span><button class="copy" data-copy="' + id + '" type="button">复制</button></figcaption><pre id="' + id +
+            '"><code>' + esc(buf.join('\n')) + '</code></pre></figure>'; continue
+        }
+        if (/^\s*$/.test(l)) { fp(); fl(); i++; continue }
+        if (m = l.match(/^(#{1,4})\s+(.*)/)) {
+          fp(); fl(); const lv = m[1].length, id = 'h' + (++_hid);
+          out += '<h' + lv + ' id="' + id + '">' + inlineMD(m[2]) + '</h' + lv + '>'; i++; continue
+        }
+        if (/^>\s?/.test(l)) {
+          fp(); fl(); const q = []; while (i < L.length && /^>\s?/.test(L[i])) { q.push(L[i].replace(/^>\s?/, '')); i++ }
+          out += '<blockquote><p>' + inlineMD(q.join(' ')) + '</p></blockquote>'; continue
+        }
+        if (/^---+$/.test(l)) { fp(); fl(); out += '<hr>'; i++; continue }
+        if (/^\|/.test(l)) {
+          fp(); fl(); const rows = []; while (i < L.length && /^\|/.test(L[i])) { rows.push(L[i]); i++ }
+          out += tableMD(rows); continue
+        }
+        if (m = l.match(/^[-*]\s+(.*)/)) { fp(); if (!list || list.t !== 'ul') { fl(); list = { t: 'ul', i: [] } } list.i.push(m[1]); i++; continue }
+        if (m = l.match(/^\d+[.、]\s+(.*)/)) { fp(); if (!list || list.t !== 'ol') { fl(); list = { t: 'ol', i: [] } } list.i.push(m[1]); i++; continue }
+        para.push(l); i++
+      }
+      fp(); fl(); return out;
+    }
+    /* 章节正文：优先远端 src（你的 AI 生成 md），其次内联 md，最后示例占位 */
+    function genMD(bk, ch, idx) {
+      const P = ch.p || ['核心概念', '动手实践', '常见误区'];
+      const tpl = [t => '这一节先把「' + t + '」讲清楚：给出定义，配一个最小可复现的例子，再落到工程上的检查清单。',
+      t => '围绕「' + t + '」，本节用一条真实线索展开——先提出问题，再走一遍推导，最后沉淀为可复用的做法。',
+      t => '「' + t + '」是本章的关键支点。我们会对比两种常见做法，说明各自的代价，并给出选型建议。',
+      t => '本节以「' + t + '」为实验对象：先观察现象，再拆解成因，最后写一段可以跑起来的验证。'];
+      const secs = P.map((t, k) => '## ' + t + '\n\n' + tpl[k % 4](t)).join('\n\n');
+      return '> 📌 本篇为演示占位正文。将 AI 生成的 Markdown 放入 `content/' + bk.id + '/ch' + pad(idx) + '.md` 并在章节数据中指定 `src`，即可自动替换。\n\n' +
+        ch.s + '。本篇按「先直觉、再机制、后工程」的顺序展开，读完应当能独立复现本节的核心做法。\n\n' + secs +
+        '\n\n## 本章小结\n\n- 掌握本讲主线：' + P.join(' → ') + '；\n- 能用自己的话向同伴讲清楚本章要点。\n\n' +
+        '## 练习\n\n1. 合上文章，默写本讲三个关键词并各配一个例子。\n2. 把本章做法迁移到你正在做的小项目里，记录一处踩坑。';
+    }
+    async function contentFor(bk, ch) {
+      if (ch.src) { try { const r = await fetch(ch.src); if (r.ok) return await r.text() } catch (e) { } }
+      return ch.md || genMD(bk, ch, ch.idx);
+    }
+
+    /* ══════════ 05 · 组件片段 ══════════ */
+    const coverHTML = (bk, cls) => '<div class="cover ' + bk.pt + ' ' + cls + '" style="--h1:' + bk.hue + ';--h2:' + bk.hue2 + '"><span class="pt"></span><span class="cv-frame"></span>' +
+      '<span class="cv-no">STEPWELL · NO.' + bk.no + '</span><span class="cv-title">' + bk.title + '</span>' +
+      '<span class="cv-en">' + bk.en + '</span><span class="cv-seal">拾</span></div>';
+    const barHTML = (p, cap) => '<div class="bar"><i data-w="' + p + '"></i></div><div class="bar-cap">' + cap + '</div>';
+    function toastMsg(t) {
+      const el = $('#toast'); el.textContent = t; el.classList.add('show');
+      clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('show'), 2400)
+    }
+
+    /* ══════════ 06 · 视图：书房（首页） ══════════ */
+    function renderHome() {
+      app.dataset.view = 'home'; document.title = '拾阶 STEPWELL · 个人系列研读库';
+      const lastBk = BOOKS.find(b => b.id === state.last.b) || BOOKS[0];
+      const li = Math.min(state.last.i || 0, lastBk.total - 1), lc = lastBk.chs[li];
+      const lp = Math.round(bDone(lastBk) / lastBk.total * 100);
+      const allDone = BOOKS.reduce((a, b) => a + bDone(b), 0);
+      const allWords = BOOKS.reduce((a, b) => a + b.chs.filter(c => isDone(b.id, c.idx)).reduce((x, c) => x + c.w, 0), 0);
+      const cats = ['全部', ...new Set(BOOKS.map(b => b.cat))];
+      app.innerHTML = `
+  <section class="mast">
+    <div class="mast-bg" aria-hidden="true">读</div>
+    <div class="mast-side" aria-hidden="true"><s></s><span>拾阶而上 · 以书为径</span></div>
+    <div class="mast-main">
+      <p class="kicker"><span class="k-dot"></span>个人系列研读库 · PERSONAL STUDY LIBRARY</p>
+      <h1 class="mast-title">把想学的，<br>读成<em>一套书<svg class="uline" viewBox="0 0 220 14" aria-hidden="true"><path d="M4 9 C 60 3, 150 13, 216 6"/></svg></em></h1>
+      <p class="mast-scr mono scr" data-text="STEP BY STEP · CHAPTER BY CHAPTER">&nbsp;</p>
+      <p class="mast-lede">每一次学习，都按一本书来组织：定目录、分卷册、记进度、留手记。AI 生成的系列文章，在这里被安放成一座可以随时回到现场的书房。</p>
+      <div class="mast-meta mono">
+        <span>${today}</span><span class="sep"></span>
+        <span>在编书目 <b>${BOOKS.length}</b></span><span class="sep"></span>
+        <span>全库 <b>${BOOKS.reduce((a, b) => a + b.total, 0)}</b> 讲</span><span class="sep"></span>
+        <span>连读 <b>${streak}</b> 天</span>
+      </div>
+      <div class="mast-cta">
+        <a class="btn btn-solid" href="#/book/${lastBk.id}/${li}" data-go="#/book/${lastBk.id}/${li}">继续上次阅读 →</a>
+        <a class="btn btn-ghost" href="#library" data-nav="#library">浏览全部书目</a>
+      </div>
+    </div>
+    <div class="mast-seal" aria-hidden="true">藏<br>书</div>
+  </section>
+
+  <section class="sec" id="reading">
+    <div class="sec-in">
+      <div class="sec-head rv"><span class="sec-no">壹 /</span><h2 class="sec-t">在读</h2><span class="sec-en">NOW READING</span><span class="sec-rule"></span></div>
+      <div class="resume rv" style="--d:.08s">
+        <a class="resume-cover" href="#/book/${lastBk.id}/${li}" data-go="#/book/${lastBk.id}/${li}" aria-label="继续阅读 ${lastBk.title}">${coverHTML(lastBk, '')}</a>
+        <div>
+          <p class="resume-k mono">RESUME · 上次读到</p>
+          <h3>《${lastBk.title}》第 ${li + 1} 讲 · ${lc.t}</h3>
+          <p class="rv-sub mono">${lc.vol} · 约 ${lc.m} 分钟 · ${(lc.w / 1000).toFixed(1)}k 字</p>
+          <p class="rv-x">${lc.s}。</p>
+          ${barHTML(lp, '<span>全书进度 ' + bDone(lastBk) + ' / ' + lastBk.total + ' 讲</span><span>' + lp + '%</span>')}
+          <div class="resume-cta">
+            <a class="btn btn-solid" href="#/book/${lastBk.id}/${li}" data-go="#/book/${lastBk.id}/${li}">翻到第 ${li + 1} 讲 →</a>
+            <a class="btn btn-ghost" href="#/book/${lastBk.id}" data-go="#/book/${lastBk.id}">查看目录</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="shelf-wrap" id="shelf">
+    <div class="shelf-in">
+      <div class="shelf-label rv">THE SHELF · 书架 · 按书脊站好你的学习</div>
+      <div class="shelf">
+        ${BOOKS.map((b, i) => {
+        const p = Math.round(bDone(b) / b.total * 100);
+        return '<a class="spine rv" style="height:' + (148 + b.total * 6) + 'px;--h1:' + b.hue + ';--d:' + (i * .09) + 's" href="#/book/' + b.id + '" data-go="#/book/' + b.id + '" title="' + b.title + ' · ' + bDone(b) + '/' + b.total + ' 已读"><span class="sp-no">' + b.no + '</span><span class="sp-t">' + b.title + '</span><span class="sp-fill" data-h="' + p + '"></span></a>'
+      }).join('')}
+        <div class="spine spine-empty" style="height:150px" aria-hidden="true"><span class="sp-t">待上架</span></div>
+      </div>
+      <div class="shelf-board" aria-hidden="true"></div>
+    </div>
+  </section>
+
+  <section class="sec" id="library">
+    <div class="sec-in">
+      <div class="sec-head rv"><span class="sec-no">贰 /</span><h2 class="sec-t">书目</h2><span class="sec-en">LIBRARY</span><span class="sec-rule"></span><span class="sec-en">${BOOKS.length} 部 · ${BOOKS.reduce((a, b) => a + b.total, 0)} 讲</span></div>
+      <div class="lib-bar rv" style="--d:.06s">
+        ${cats.map((c, i) => '<button class="chip' + (i === 0 ? ' on' : '') + '" data-cat="' + c + '" type="button">' + c + '</button>').join('')}
+        <div class="lib-search">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg>
+          <input id="libQ" type="text" placeholder="筛选书目…" aria-label="筛选书目">
+        </div>
+      </div>
+      <div class="lib">
+        ${BOOKS.map((b, i) => {
+        const d = bDone(b), p = Math.round(d / b.total * 100), st = bStatus(b);
+        const next = b.chs.findIndex(c => !isDone(b.id, c.idx));
+        const go = next < 0 ? ('#/book/' + b.id) : ('#/book/' + b.id + '/' + next);
+        const cta = st === '已读完' ? '重温全书' : d > 0 ? '继续阅读 · 第 ' + (next + 1) + ' 讲' : '开始学习';
+        return `<article class="bcard rv" style="--d:${i * .08}s" data-cat="${b.cat}" data-q="${(b.title + b.sub + b.en + b.cat).toLowerCase()}">
+            <a class="bcard-cover" href="#/book/${b.id}" data-go="#/book/${b.id}" aria-label="打开《${b.title}》">
+              <span class="bcard-st">${st}</span>${coverHTML(b, 'cover-h')}</a>
+            <div class="bcard-b">
+              <div class="bcard-t"><b>${b.title}</b><span>${b.level}</span></div>
+              <p class="bcard-sub">${b.sub}</p>
+              <div class="bcard-meta mono"><span>${b.vols.length} 卷</span><span>${b.total} 讲</span><span>${(b.words / 1000).toFixed(0)}k 字</span></div>
+              ${barHTML(p, '<span>' + d + ' / ' + b.total + ' 已读</span><span>' + p + '%</span>')}
+              <div class="bcard-foot">
+                <a class="bcard-go mono" href="${go}" data-go="${go}">${cta} →</a>
+                <span class="bcard-up mono">更新 ${b.updated}</span>
+              </div>
+            </div></article>`}).join('')}
+      </div>
+      <div class="lib-empty" id="libEmpty">架上暂无此类书目 —— 换个筛选试试。</div>
+    </div>
+  </section>
+
+  <section class="sec" style="padding-top:0">
+    <div class="sec-in">
+      <div class="sec-head rv"><span class="sec-no">叁 /</span><h2 class="sec-t">即将开卷</h2><span class="sec-en">FORTHCOMING</span><span class="sec-rule"></span></div>
+      <div class="posts">
+        ${UPCOMING.map((u, i) => '<div class="post rv" style="--r:' + ((i % 2 ? 1 : -1) * (2 + i)) + 'deg;--d:' + (i * .1) + 's"><span class="ps">筹备中</span><p class="pd mono">' + u.d + '</p><h4>' + u.t + '</h4><p>' + u.n + '</p></div>').join('')}
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="journal" style="padding-top:0">
+    <div class="sec-in">
+      <div class="sec-head rv"><span class="sec-no">肆 /</span><h2 class="sec-t">手记</h2><span class="sec-en">JOURNAL</span><span class="sec-rule"></span></div>
+      <div class="jgrid">
+        ${JOURNAL.map((j, i) => '<article class="jcard rv" style="--d:' + (i * .1) + 's"><div class="jimg"><img src="https://picsum.photos/seed/' + j.s + '/640/400" alt="' + j.t + '" loading="lazy"></div><div class="jbody"><p class="jd mono">' + j.d + '</p><h4>' + j.t + '</h4><p>' + j.x + '</p></div></article>').join('')}
+      </div>
+    </div>
+  </section>
+
+  <section class="ledger">
+    <div class="led-in">
+      <div class="led-t rv">台账<small>THE LEDGER · 学习是一场长跑</small></div>
+      <div class="led-grid">
+        <div class="led rv" style="--d:.05s"><b class="cnt" data-to="${BOOKS.length}">0</b><span>在编书目</span></div>
+        <div class="led rv" style="--d:.12s"><b class="cnt" data-to="${BOOKS.reduce((a, b) => a + b.total, 0)}">0</b><span>全库讲数</span></div>
+        <div class="led rv" style="--d:.19s"><b class="cnt" data-to="${allDone}">0</b><span>已读讲数</span></div>
+        <div class="led rv" style="--d:.26s"><b><span class="cnt" data-to="${Math.round(allWords / 1000)}">0</span>k</b><span>累计读字</span></div>
+      </div>
+    </div>
+  </section>`;
+    }
+
+    /* ══════════ 07 · 视图：书目页 ══════════ */
+    function renderBook(bk) {
+      app.dataset.view = 'book'; document.title = '《' + bk.title + '》· 拾阶 STEPWELL';
+      const d = bDone(bk), p = Math.round(d / bk.total * 100);
+      const next = bk.chs.findIndex(c => !isDone(bk.id, c.idx));
+      const resume = next < 0 ? 0 : next;
+      let base = 0;
+      const volsHTML = bk.vols.map((v, vi) => {
+        const rows = v.chs.map(c => {
+          const abs = base + c.idx - (bk.chs.indexOf(c)) + bk.chs.indexOf(c); // keep simple below
+          return '';
+        }).join('');
+        return '';
+      }).join('');
+      /* 直接按扁平索引渲染 */
+      let html = '<nav class="crumbs"><a href="#/" data-go="#/">书房</a> ／ <span>' + bk.cat + '</span> ／ <span>' + bk.title + '</span></nav>' +
+        '<header class="book-head">' +
+        '<div class="rv">' + coverHTML(bk, '') + '</div>' +
+        '<div class="rv" style="--d:.08s"><div class="tags">' +
+        '<span class="tag solid" style="background:' + bk.hue + '">' + bk.cat + '</span>' +
+        '<span class="tag">' + bk.level + '</span>' +
+        '<span class="tag rd">' + bStatus(bk) + '</span></div>' +
+        '<h1 class="book-title">' + bk.title + '</h1>' +
+        '<p class="book-en mono">' + bk.en + '</p>' +
+        '<p class="book-sub">' + bk.sub + '</p>' +
+        '<p class="book-intro">' + bk.intro + '</p>' +
+        '<div class="bmeta">' +
+        '<div><span>VOLUMES · 卷</span><b>' + bk.vols.length + '</b></div>' +
+        '<div><span>CHAPTERS · 讲</span><b>' + bk.total + '</b></div>' +
+        '<div><span>WORDS · 字数</span><b>' + (bk.words / 1000).toFixed(1) + 'k</b></div>' +
+        '<div><span>UPDATED · 更新</span><b>' + bk.updated + '</b></div></div>' +
+        '<div class="bprog">' + barHTML(p, '<span>阅读进度 ' + d + ' / ' + bk.total + '</span><span>' + p + '%</span>') + '</div>' +
+        '<div class="bact">' +
+        '<a class="btn btn-solid" href="#/book/' + bk.id + '/' + resume + '" data-go="#/book/' + bk.id + '/' + resume + '">' + (d === 0 ? '从第 1 讲开始' : '继续 · 第 ' + (resume + 1) + ' 讲') + ' →</a>' +
+        '<a class="btn btn-ghost" href="#/book/' + bk.id + '/0" data-go="#/book/' + bk.id + '/0">从头读起</a></div>' +
+        '</div></header>';
+
+      let aside = '<div class="volnav rv"><h6>卷目 · CONTENTS</h6>';
+      let cursor = 0;
+      bk.vols.forEach((v, vi) => {
+        const cnt = v.chs.length, vDone = v.chs.filter(c => isDone(bk.id, c.idx)).length;
+        aside += '<a href="#vol-' + vi + '" data-scroll="#vol-' + vi + '">' + v.t + '<span>' + vDone + '/' + cnt + '</span></a>';
+        cursor += cnt;
+      });
+      aside += '<div class="vn-prog">' + barHTML(p, '<span>总进度</span><span>' + p + '%</span>') + '</div></div>';
+
+      let chs = '', gi = 0;
+      bk.vols.forEach((v, vi) => {
+        chs += '<h4 class="vol" id="vol-' + vi + '">' + v.t + ' · ' + v.chs.length + ' 讲</h4>';
+        v.chs.forEach(c => {
+          const done = isDone(bk.id, c.idx), cur = (state.last.b === bk.id && state.last.i === gi && !done);
+          chs += '<a class="ch ' + (done ? 'done' : cur ? 'cur' : 'todo') + '" href="#/book/' + bk.id + '/' + gi + '" data-go="#/book/' + bk.id + '/' + gi + '">' +
+            '<span class="ch-no">' + pad(gi) + '</span>' +
+            '<span class="ch-b"><b>' + c.t + '</b><i>' + c.s + '</i></span>' +
+            '<span class="ch-m mono">' + c.m + ' 分钟 · ' + (c.w / 1000).toFixed(1) + 'k</span>' +
+            '<span class="ch-st" aria-hidden="true"></span></a>';
+          gi++;
+        });
+      });
+      html += '<div class="toc-wrap"><aside class="toc-side">' + aside + '</aside><div class="chs">' + chs + '</div></div>';
+      app.innerHTML = html;
+    }
+
+    /* ══════════ 08 · 视图：阅读页 ══════════ */
+    let curBk = null, curIdx = 0, readerScroll = null;
+    async function renderReader(bk, idx) {
+      idx = Math.max(0, Math.min(idx, bk.total - 1));
+      curBk = bk; curIdx = idx;
+      state.last = { b: bk.id, i: idx }; save();
+      app.dataset.view = 'reader';
+      const ch = bk.chs[idx];
+      document.title = ch.t + ' · 《' + bk.title + '》· 拾阶';
+      const src = await contentFor(bk, ch);
+      _hid = 0;
+      const body = renderMD(src);
+      const done = isDone(bk.id, idx);
+      const prev = idx > 0 ? bk.chs[idx - 1] : null, next = idx < bk.total - 1 ? bk.chs[idx + 1] : null;
+      app.innerHTML = `
+  <div class="rprog" id="rprog"></div>
+  <div class="reader-top">
+    <a class="rt-back" href="#/book/${bk.id}" data-go="#/book/${bk.id}">← 《${bk.title}》</a>
+    <span class="rt-mid">${ch.vol} · 第 ${idx + 1} / ${bk.total} 讲 · 约 ${ch.m} 分钟</span>
+    <div class="rt-tools">
+      <button class="ibtn" data-fs="-1" aria-label="缩小字号">A−</button>
+      <button class="ibtn" data-fs="1" aria-label="放大字号">A＋</button>
+    </div>
+  </div>
+  <div class="reader-grid">
+    <aside class="rtoc" id="rtoc" aria-label="本页目录"><h5>本页目录 · TOC</h5><div id="rtocLinks"></div>
+      <div class="rtoc-p mono">本篇进度 <b id="rtocPct">0%</b></div></aside>
+    <article class="prose" id="prose">
+      <p class="art-kicker">《${bk.title}》· ${ch.vol}</p>
+      <h1 class="art-title">${ch.t}</h1>
+      <div class="art-meta mono">
+        <span>第 ${idx + 1} / ${bk.total} 讲</span><span>${(ch.w / 1000).toFixed(1)}k 字</span>
+        <span>约 ${ch.m} 分钟</span><span id="doneStamp">${done ? '<span class="stamp">已读</span>' : ''}</span>
+      </div>
+      <div class="art-rule" aria-hidden="true"></div>
+      <div id="artBody">${body}</div>
+      <div class="art-end">
+        <button class="btn btn-ghost" id="markBtn" type="button">${done ? '↺ 撤销已读标记' : '✓ 标记为已读'}</button>
+      </div>
+      <nav class="art-nav" aria-label="章节导航">
+        ${prev ? '<a class="an prev" href="#/book/' + bk.id + '/' + (idx - 1) + '" data-go="#/book/' + bk.id + '/' + (idx - 1) + '"><small>← 上一讲</small><b>' + prev.t + '</b></a>'
+          : '<a class="an prev off"><small>← 已是第一讲</small><b>回到目录</b></a>'}
+        ${next ? '<a class="an next" href="#/book/' + bk.id + '/' + (idx + 1) + '" data-go="#/book/' + bk.id + '/' + (idx + 1) + '"><small>下一讲 →</small><b>' + next.t + '</b></a>'
+          : '<a class="an next off"><small>全书完 →</small><b>回到书目</b></a>'}
+      </nav>
+    </article>
+  </div>`;
+      /* 目录构建 */
+      const heads = $$('#artBody h2, #artBody h3');
+      $('#rtocLinks').innerHTML = heads.map(h => '<a class="' + (h.tagName === 'H3' ? 'l3' : '') + '" href="#' + h.id + '" data-anchor="' + h.id + '">' + h.textContent + '</a>').join('') || '<span class="mono" style="color:var(--ink2)">暂无小节</span>';
+      /* 阅读进度 + 自动标记已读 */
+      let autoShown = false;
+      const onScroll = () => {
+        const proseEl = $('#prose'); if (!proseEl) return;
+        const rect = proseEl.getBoundingClientRect();
+        const total = rect.height - innerHeight;
+        const p = Math.max(0, Math.min(1, -rect.top / Math.max(1, total)));
+        const pct = Math.round(p * 100);
+        const rp = $('#rprog'); if (rp) rp.style.width = pct + '%';
+        const tp = $('#rtocPct'); if (tp) tp.textContent = pct + '%';
+        if (pct >= 85 && !isDone(bk.id, idx)) {
+          setDone(bk.id, idx, true);
+          const st = $('#doneStamp'); if (st) st.innerHTML = '<span class="stamp">已读</span>';
+          const mb = $('#markBtn'); if (mb) mb.textContent = '↺ 撤销已读标记';
+          if (!autoShown) { toastMsg('已读完 · 「' + ch.t + '」收入书架'); autoShown = true }
+        }
+        /* 目录高亮 */
+        let act = null;
+        heads.forEach(h => { if (h.getBoundingClientRect().top < 130) act = h.id });
+        $$('#rtocLinks a').forEach(a => a.classList.toggle('on', a.dataset.anchor === act));
+      };
+      window.addEventListener('scroll', onScroll, { passive: true });
+      readerScroll = onScroll; onScroll();
+      const mb = $('#markBtn');
+      if (mb) mb.addEventListener('click', () => {
+        const now = !isDone(bk.id, idx); setDone(bk.id, idx, now);
+        mb.textContent = now ? '↺ 撤销已读标记' : '✓ 标记为已读';
+        $('#doneStamp').innerHTML = now ? '<span class="stamp">已读</span>' : '';
+        toastMsg(now ? '已标记为已读' : '已撤销标记');
+      });
+    }
+
+    /* ══════════ 09 · 路由 ══════════ */
+    const app = $('#app'); let pendingScroll = null;
+    function route() {
+      if (readerScroll) { window.removeEventListener('scroll', readerScroll); readerScroll = null }
+      const parts = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
+      let view = 'home';
+      if (parts[0] === 'book' && parts[1]) {
+        const bk = BOOKS.find(b => b.id === parts[1]);
+        if (bk) {
+          if (parts[2] != null) { awaitSafe(() => renderReader(bk, parseInt(parts[2], 10) || 0)); view = 'reader' }
+          else { renderBook(bk); view = 'book' }
+        }
+        else renderHome();
+      } else renderHome();
+      window.scrollTo(0, 0);
+      updateNav();
+      if (view === 'home' && pendingScroll) {
+        const el = document.querySelector(pendingScroll);
+        if (el) el.scrollTo ? el.scrollIntoView({ behavior: RM ? 'auto' : 'smooth' }) : null;
+        pendingScroll = null;
+      }
+      bindEffects();
+    }
+    function awaitSafe(fn) { const r = fn(); if (r && r.then) r.then(() => bindEffects()) }
+    function updateNav() { $$('.tnav a').forEach(a => a.classList.toggle('on', a.dataset.go === '#/' && app.dataset.view === 'home')) }
+    window.addEventListener('hashchange', route);
+
+    /* ══════════ 10 · 动效绑定（揭示/计数/乱码解码/进度条） ══════════ */
+    const io = new IntersectionObserver(es => es.forEach(en => {
+      if (!en.isIntersecting) return;
+      const el = en.target; el.classList.add('in');
+      if (el.classList.contains('scr')) scramble(el);
+      el.querySelectorAll && el.querySelectorAll('.cnt').forEach(runCounter);
+      if (el.classList.contains('cnt')) runCounter(el);
+      el.querySelectorAll('[data-w]').forEach(b => b.style.width = b.dataset.w + '%');
+      el.querySelectorAll('[data-h]').forEach(b => b.style.height = b.dataset.h + '%');
+      io.unobserve(el);
+    }), { threshold: .14 });
+    function bindEffects() {
+      $$('.rv:not(.in),.scr').forEach(el => io.observe(el));
+      $$('[data-w]').forEach(b => { if (b.closest('.in') || !b.closest('.rv')) b.style.width = b.dataset.w + '%' });
+      $$('[data-h]').forEach(b => b.style.height = b.dataset.h + '%');
+    }
+    function scramble(el) {
+      const txt = el.dataset.text || el.textContent;
+      if (RM) { el.textContent = txt; return }
+      const CH = 'ABCDEFGHKMNPRSTWX#/\\<>—'; let f = 0;
+      const iv = setInterval(() => {
+        f += 1;
+        el.textContent = txt.split('').map((c, i) => i < f ? c : (c === ' ' ? ' ' : CH[Math.random() * CH.length | 0])).join('');
+        if (f >= txt.length) { clearInterval(iv); el.textContent = txt }
+      }, 26);
+    }
+    function runCounter(el) {
+      if (el._done) return; el._done = true;
+      const to = +el.dataset.to || 0;
+      if (RM) { el.textContent = to.toLocaleString(); return }
+      const t0 = performance.now(), dur = 1300;
+      const step = t => {
+        const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+        el.textContent = Math.round(to * e).toLocaleString();
+        if (k < 1) requestAnimationFrame(step)
+      };
+      requestAnimationFrame(step);
+    }
+
+    /* ══════════ 11 · 主题 / 字号 ══════════ */
+    function applyTheme() {
+      document.documentElement.dataset.theme = state.theme;
+      $('#icoMoon').hidden = state.theme === 'dark';
+      $('#icoSun').hidden = state.theme !== 'dark';
+    }
+    function applyFs() { document.documentElement.style.setProperty('--prose-fs', (16 + state.fs * 1.4) + 'px') }
+
+    /* ══════════ 12 · 检索面板 ══════════ */
+    const pal = $('#pal'), palInput = $('#palInput'), palList = $('#palList');
+    const INDEX = []; BOOKS.forEach(b => b.chs.forEach(c => INDEX.push({ b, c })));
+    let palSel = 0, palRows = [];
+    function openPal() { pal.hidden = false; palInput.value = ''; drawPal(''); setTimeout(() => palInput.focus(), 30) }
+    function closePal() { pal.hidden = true }
+    function drawPal(q) {
+      q = (q || '').trim().toLowerCase(); palSel = 0;
+      palRows = q ? INDEX.filter(r => (r.c.t + r.c.s + r.b.title + r.b.cat).toLowerCase().includes(q)).slice(0, 12) : INDEX.filter(r => isDone(r.b.id, r.c.idx)).slice(-6).reverse();
+      if (!q && palRows.length === 0) palRows = INDEX.slice(0, 8);
+      palList.innerHTML = palRows.length ? palRows.map((r, i) =>
+        '<div class="pal-it' + (i === 0 ? ' on' : '') + '" data-go="#/book/' + r.b.id + '/' + r.c.idx + '">' +
+        '<span class="pal-dot" style="background:' + r.b.hue + '"></span>' +
+        '<span class="pal-t"><b>' + r.c.t + '</b><span>' + r.b.title + ' · ' + r.c.vol + '</span></span>' +
+        '<span class="pal-k">' + pad(r.c.idx) + ' / ' + r.b.total + '</span></div>').join('')
+        : '<div class="pal-none">未找到相关章节。</div>';
+    }
+    function palMove(d) {
+      const its = $$('.pal-it'); if (!its.length) return;
+      palSel = (palSel + d + its.length) % its.length;
+      its.forEach((el, i) => el.classList.toggle('on', i === palSel));
+      its[palSel].scrollIntoView({ block: 'nearest' });
+    }
+    palInput.addEventListener('input', e => drawPal(e.target.value));
+    palInput.addEventListener('keydown', e => {
+      if (e.key === 'ArrowDown') { e.preventDefault(); palMove(1) }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); palMove(-1) }
+      else if (e.key === 'Enter') { const it = $$('.pal-it')[palSel]; if (it) { location.hash = it.dataset.go; closePal() } }
+    });
+    pal.addEventListener('click', e => {
+      const it = e.target.closest('.pal-it');
+      if (it) { location.hash = it.dataset.go; closePal() }
+      else if (e.target === pal) closePal();
+    });
+
+    /* ══════════ 13 · 全局事件 ══════════ */
+    document.addEventListener('click', e => {
+      const cp = e.target.closest('[data-copy]');
+      if (cp) {
+        const pre = document.getElementById(cp.dataset.copy);
+        if (pre) { (navigator.clipboard ? navigator.clipboard.writeText(pre.innerText) : Promise.reject()).then(() => toastMsg('代码已复制')).catch(() => toastMsg('复制失败')) } return
+      }
+      const go = e.target.closest('[data-go]');
+      if (go) {
+        e.preventDefault(); const h = go.dataset.go;
+        if (location.hash === h) route(); else location.hash = h; closePal(); return
+      }
+      const nv = e.target.closest('[data-nav]');
+      if (nv) {
+        e.preventDefault(); const id = nv.dataset.nav;
+        if (app.dataset.view === 'home') { const el = $(id); el && el.scrollIntoView({ behavior: RM ? 'auto' : 'smooth' }) }
+        else { pendingScroll = id; location.hash = '#/' } return
+      }
+      const sc = e.target.closest('[data-scroll]');
+      if (sc) { e.preventDefault(); const el = $(sc.dataset.scroll); el && el.scrollIntoView({ behavior: RM ? 'auto' : 'smooth', block: 'start' }); return }
+      const th = e.target.closest('[data-theme]');
+      if (th) { state.theme = state.theme === 'dark' ? 'light' : 'dark'; save(); applyTheme(); return }
+      const fs = e.target.closest('[data-fs]');
+      if (fs) { state.fs = Math.max(0, Math.min(4, state.fs + +fs.dataset.fs)); save(); applyFs(); return }
+      const pb = e.target.closest('[data-pal]');
+      if (pb) { openPal(); return }
+      const chip = e.target.closest('[data-cat]');
+      if (chip) { $$('.chip').forEach(c => c.classList.toggle('on', c === chip)); filterLib(); return }
+    });
+    document.addEventListener('input', e => { if (e.target.id === 'libQ') filterLib() });
+    let libCat = '全部';
+    document.addEventListener('click', e => { const c = e.target.closest('.chip'); if (c) libCat = c.dataset.cat });
+    function filterLib() {
+      const q = ($('#libQ') ? $('#libQ').value : '').trim().toLowerCase(); let n = 0;
+      $$('.bcard').forEach(card => {
+        const ok = (libCat === '全部' || card.dataset.cat === libCat) && (!q || card.dataset.q.includes(q));
+        card.classList.toggle('hide', !ok); if (ok) n++;
+      });
+      const em = $('#libEmpty'); if (em) em.style.display = n ? 'none' : 'block';
+    }
+    document.addEventListener('keydown', e => {
+      const typing = /input|textarea/i.test(document.activeElement.tagName);
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); pal.hidden ? openPal() : closePal(); return }
+      if (e.key === 'Escape' && !pal.hidden) { closePal(); return }
+      if (typing) return;
+      if (e.key === '/') { e.preventDefault(); openPal(); return }
+      if (e.key.toLowerCase() === 't') { state.theme = state.theme === 'dark' ? 'light' : 'dark'; save(); applyTheme(); return }
+      if (app.dataset.view === 'reader') {
+        if (e.key === 'ArrowLeft' && curIdx > 0) location.hash = '#/book/' + curBk.id + '/' + (curIdx - 1);
+        if (e.key === 'ArrowRight' && curIdx < curBk.total - 1) location.hash = '#/book/' + curBk.id + '/' + (curIdx + 1);
+      }
+    });
+    window.addEventListener('scroll', () => { $('#topbar').classList.toggle('scrolled', scrollY > 8) }, { passive: true });
+
+    /* ══════════ 14 · 启动 ══════════ */
+    applyTheme(); applyFs(); route();
+  </script>
+</body>
+
+</html>

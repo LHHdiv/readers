@@ -1,0 +1,51 @@
+---
+import { site } from "../site.config";
+
+interface Props {
+  view?: "home" | "book" | "reader";
+}
+
+const { view = "home" } = Astro.props;
+---
+
+<header class="topbar" id="topbar">
+  <a class="brand" href="/" aria-label="回到书房">
+    <span class="seal" aria-hidden="true">{site.seal}</span>
+    <span class="bw"><b>{site.name}</b><i>STEPWELL · 研读库</i></span>
+  </a>
+  <button
+    class="nav-toggle ibtn"
+    id="navToggle"
+    type="button"
+    aria-expanded="false"
+    aria-controls="tnav"
+    aria-label="打开菜单"
+  >
+    菜单
+  </button>
+  <nav class="tnav" id="tnav" aria-label="主导航">
+    <a href="/" aria-current={view === "home" ? "page" : undefined}>书房</a>
+    <a href="/#shelf">书架</a>
+    <a href="/#journal">手记</a>
+  </nav>
+  <div class="tools">
+    <button class="ibtn" data-pal type="button" aria-label="全局检索">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="11" cy="11" r="7"></circle>
+        <path d="m20 20-3.8-3.8"></path>
+      </svg>
+      <span class="k">K</span>
+    </button>
+    <button class="ibtn" data-theme type="button" aria-label="切换明暗主题" id="themeBtn">
+      <svg viewBox="0 0 24 24" id="icoMoon" aria-hidden="true">
+        <path d="M20 13.5A8.5 8.5 0 1 1 10.5 4 6.8 6.8 0 0 0 20 13.5Z"></path>
+      </svg>
+      <svg viewBox="0 0 24 24" id="icoSun" hidden aria-hidden="true">
+        <circle cx="12" cy="12" r="4.4"></circle>
+        <path
+          d="M12 2.5v2.4M12 19.1v2.4M2.5 12h2.4M19.1 12h2.4M5 5l1.7 1.7M17.3 17.3 19 19M19 5l-1.7 1.7M6.7 17.3 5 19"
+        ></path>
+      </svg>
+    </button>
+  </div>
+</header>

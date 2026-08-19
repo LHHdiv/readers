@@ -1,0 +1,302 @@
+---
+import Base from "../layouts/Base.astro";
+import Cover from "../components/Cover.astro";
+import { upcoming } from "../site.config";
+import { getCollection } from "astro:content";
+import { loadLibrary, toClientCatalog, todayLabel } from "../lib/catalog";
+
+const books = await loadLibrary();
+const journal = (await getCollection("journal")).sort((a, b) => a.data.order - b.data.order);
+const catalog = toClientCatalog(books);
+const first = books[0];
+const firstChapter = first?.chapters[0];
+const totalChapters = books.reduce((sum, book) => sum + book.total, 0);
+const cats = ["全部", ...new Set(books.map((book) => book.cat))];
+const today = todayLabel();
+---
+
+<Base catalog={catalog} view="home">
+  <section class="mast">
+    <div class="mast-bg" aria-hidden="true">读</div>
+    <div class="mast-side" aria-hidden="true"><s></s><span>拾阶而上 · 以书为径</span></div>
+    <div class="mast-main">
+      <p class="kicker">
+        <span class="k-dot"></span>个人系列研读库 · PERSONAL STUDY LIBRARY
+      </p>
+      <h1 class="mast-title">
+        把想学的，<br />读成<em
+          >一套书<svg class="uline" viewBox="0 0 220 14" aria-hidden="true"
+            ><path d="M4 9 C 60 3, 150 13, 216 6"></path></svg
+          ></em
+        >
+      </h1>
+      <p class="mast-scr mono scr" data-text="STEP BY STEP · CHAPTER BY CHAPTER">&nbsp;</p>
+      <p class="mast-lede">
+        每一次学习，都按一本书来组织：定目录、分卷册、记进度、留手记。系列文章在这里被安放成一座可以随时回到现场的书房。
+      </p>
+      <div class="mast-meta mono">
+        <span>{today}</span><span class="sep"></span>
+        <span>在编书目 <b>{books.length}</b></span><span class="sep"></span>
+        <span>全库 <b>{totalChapters}</b> 讲</span><span class="sep"></span>
+        <span>连读 <b data-streak>1</b> 天</span>
+      </div>
+      <div class="mast-cta">
+        <a class="btn btn-solid" data-resume-go href={firstChapter?.path ?? "/"}>继续上次阅读</a>
+        <a class="btn btn-ghost" href="#library">浏览全部书目</a>
+      </div>
+    </div>
+    <div class="mast-seal" aria-hidden="true">藏<br />书</div>
+  </section>
+
+  {
+    first && firstChapter && (
+      <section class="sec" id="reading">
+        <div class="sec-in">
+          <div class="sec-head rv">
+            <span class="sec-no">壹 /</span>
+            <h2 class="sec-t">在读</h2>
+            <span class="sec-en">NOW READING</span>
+            <span class="sec-rule"></span>
+          </div>
+          <div class="resume rv" style="--d:.08s" data-resume>
+            <a
+              class="resume-cover"
+              data-resume-cover
+              href={firstChapter.path}
+              aria-label={`继续阅读 ${first.title}`}
+            >
+              <Cover
+                title={first.title}
+                en={first.en}
+                no={first.no}
+                hue={first.hue}
+                hue2={first.hue2}
+                pattern={first.pattern}
+              />
+            </a>
+            <div>
+              <p class="resume-k mono">RESUME · 上次读到</p>
+              <h3 data-resume-title>
+                《{first.title}》第 1 讲 · {firstChapter.entry.data.title}
+              </h3>
+              <p class="rv-sub mono" data-resume-sub>
+                {firstChapter.entry.data.vol} · 约 {firstChapter.minutes} 分钟 ·{" "}
+                {(firstChapter.words / 1000).toFixed(1)}k 字
+              </p>
+              <p class="rv-x" data-resume-x>{firstChapter.entry.data.summary}</p>
+              <div class="bar">
+                <i data-bar={first.id} data-w="0"></i>
+              </div>
+              <div class="bar-cap">
+                <span>
+                  全书进度 <span data-done-count={first.id}>0</span> / {first.total} 讲
+                </span>
+                <span data-bar-pct={first.id}>0%</span>
+              </div>
+              <div class="resume-cta">
+                <a class="btn btn-solid" data-resume-go href={firstChapter.path}>翻到第 1 讲</a>
+                <a class="btn btn-ghost" href={first.path}>查看目录</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  <section class="shelf-wrap" id="shelf">
+    <div class="shelf-in">
+      <div class="shelf-label rv">THE SHELF · 书架 · 按书脊站好你的学习</div>
+      <div class="shelf">
+        {
+          books.map((book, i) => (
+            <a
+              class="spine rv"
+              style={`height:${148 + book.total * 6}px;--h1:${book.hue};--d:${i * 0.09}s`}
+              href={book.path}
+              title={`${book.title} · ${book.total} 讲`}
+            >
+              <span class="sp-no">{book.no}</span>
+              <span class="sp-t">{book.title}</span>
+              <span class="sp-fill" data-spine={book.id} data-h="0"></span>
+            </a>
+          ))
+        }
+        <div class="spine spine-empty" style="height:150px" aria-hidden="true">
+          <span class="sp-t">待上架</span>
+        </div>
+      </div>
+      <div class="shelf-board" aria-hidden="true"></div>
+    </div>
+  </section>
+
+  <section class="sec" id="library">
+    <div class="sec-in">
+      <div class="sec-head rv">
+        <span class="sec-no">贰 /</span>
+        <h2 class="sec-t">书目</h2>
+        <span class="sec-en">LIBRARY</span>
+        <span class="sec-rule"></span>
+        <span class="sec-en">{books.length} 部 · {totalChapters} 讲</span>
+      </div>
+      <div class="lib-bar rv" style="--d:.06s">
+        {
+          cats.map((cat, i) => (
+            <button class:list={["chip", { on: i === 0 }]} data-cat={cat} type="button">
+              {cat}
+            </button>
+          ))
+        }
+        <div class="lib-search">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="11" cy="11" r="7"></circle>
+            <path d="m20 20-3.8-3.8"></path>
+          </svg>
+          <label class="sr-only" for="libQ">筛选书目</label>
+          <input id="libQ" type="search" placeholder="筛选书目" />
+        </div>
+      </div>
+      <div class="lib">
+        {
+          books.map((book, i) => {
+            const q = `${book.title}${book.sub}${book.en}${book.cat}`.toLowerCase();
+            return (
+              <article
+                class="bcard rv"
+                style={`--d:${i * 0.08}s`}
+                data-cat={book.cat}
+                data-q={q}
+                data-book={book.id}
+              >
+                <a class="bcard-cover" href={book.path} aria-label={`打开《${book.title}》`}>
+                  <span class="bcard-st" data-status={book.id}>
+                    未开卷
+                  </span>
+                  <Cover
+                    title={book.title}
+                    en={book.en}
+                    no={book.no}
+                    hue={book.hue}
+                    hue2={book.hue2}
+                    pattern={book.pattern}
+                    landscape
+                  />
+                </a>
+                <div class="bcard-b">
+                  <div class="bcard-t">
+                    <b>{book.title}</b>
+                    <span>{book.level}</span>
+                  </div>
+                  <p class="bcard-sub">{book.sub}</p>
+                  <div class="bcard-meta mono">
+                    <span>{book.vols.length} 卷</span>
+                    <span>{book.total} 讲</span>
+                    <span>{(book.words / 1000).toFixed(0)}k 字</span>
+                  </div>
+                  <div class="bar">
+                    <i data-bar={book.id} data-w="0"></i>
+                  </div>
+                  <div class="bar-cap">
+                    <span>
+                      <span data-done-count={book.id}>0</span> / {book.total} 已读
+                    </span>
+                    <span data-bar-pct={book.id}>0%</span>
+                  </div>
+                  <div class="bcard-foot">
+                    <a class="bcard-go mono" data-book-cta={book.id} href={book.chapters[0]?.path ?? book.path}>
+                      开始学习
+                    </a>
+                    <span class="bcard-up mono">更新 {book.updated}</span>
+                  </div>
+                </div>
+              </article>
+            );
+          })
+        }
+      </div>
+      <div class="lib-empty" id="libEmpty">架上暂无此类书目，换个筛选试试。</div>
+    </div>
+  </section>
+
+  <section class="sec" style="padding-top:0">
+    <div class="sec-in">
+      <div class="sec-head rv">
+        <span class="sec-no">叁 /</span>
+        <h2 class="sec-t">即将开卷</h2>
+        <span class="sec-en">FORTHCOMING</span>
+        <span class="sec-rule"></span>
+      </div>
+      <div class="posts">
+        {
+          upcoming.map((item, i) => (
+            <div class="post rv" style={`--r:${(i % 2 ? 1 : -1) * (2 + i)}deg;--d:${i * 0.1}s`}>
+              <span class="ps">筹备中</span>
+              <p class="pd mono">{item.date}</p>
+              <h4>{item.title}</h4>
+              <p>{item.note}</p>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="journal" style="padding-top:0">
+    <div class="sec-in">
+      <div class="sec-head rv">
+        <span class="sec-no">肆 /</span>
+        <h2 class="sec-t">手记</h2>
+        <span class="sec-en">JOURNAL</span>
+        <span class="sec-rule"></span>
+      </div>
+      <div class="jgrid">
+        {
+          journal.map((item, i) => (
+            <article class="jcard rv" style={`--d:${i * 0.1}s`}>
+              <div class="jimg">
+                <img
+                  src={item.data.image}
+                  alt=""
+                  width="640"
+                  height="400"
+                  loading={i === 0 ? "eager" : "lazy"}
+                />
+              </div>
+              <div class="jbody">
+                <p class="jd mono">{item.data.date}</p>
+                <h4>{item.data.title}</h4>
+                <p>{item.body.trim()}</p>
+              </div>
+            </article>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <section class="ledger">
+    <div class="led-in">
+      <div class="led-t rv">
+        台账<small>THE LEDGER · 学习是一场长跑</small>
+      </div>
+      <div class="led-grid">
+        <div class="led rv" style="--d:.05s">
+          <b class="cnt" data-to={books.length}>0</b>
+          <span>在编书目</span>
+        </div>
+        <div class="led rv" style="--d:.12s">
+          <b class="cnt" data-to={totalChapters}>0</b>
+          <span>全库讲数</span>
+        </div>
+        <div class="led rv" style="--d:.19s">
+          <b class="cnt" data-ledger-done data-to="0">0</b>
+          <span>已读讲数</span>
+        </div>
+        <div class="led rv" style="--d:.26s">
+          <b><span class="cnt" data-ledger-words data-to="0">0</span>k</b>
+          <span>累计读字</span>
+        </div>
+      </div>
+    </div>
+  </section>
+</Base>

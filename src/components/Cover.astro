@@ -1,0 +1,26 @@
+---
+interface Props {
+  title: string;
+  en: string;
+  no: string;
+  hue: string;
+  hue2: string;
+  pattern: string;
+  landscape?: boolean;
+}
+
+const { title, en, no, hue, hue2, pattern, landscape = false } = Astro.props;
+---
+
+<div
+  class:list={["cover", pattern, { "cover-h": landscape }]}
+  style={`--h1:${hue};--h2:${hue2}`}
+  aria-hidden="true"
+>
+  <span class="pt"></span>
+  <span class="cv-frame"></span>
+  <span class="cv-no">STEPWELL · NO.{no}</span>
+  <span class="cv-title">{title}</span>
+  <span class="cv-en">{en}</span>
+  <span class="cv-seal">拾</span>
+</div>

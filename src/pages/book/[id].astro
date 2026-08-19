@@ -1,0 +1,134 @@
+---
+import Base from "../../layouts/Base.astro";
+import Cover from "../../components/Cover.astro";
+import { loadLibrary, toClientCatalog, pad, findBook } from "../../lib/catalog";
+
+export async function getStaticPaths() {
+  const books = await loadLibrary();
+  return books.map((book) => ({ params: { id: book.id } }));
+}
+
+const books = await loadLibrary();
+const catalog = toClientCatalog(books);
+const book = findBook(books, Astro.params.id!);
+if (!book) throw new Error(`unknown book: ${Astro.params.id}`);
+const first = book.chapters[0];
+---
+
+<Base
+  catalog={catalog}
+  view="book"
+  title={`《${book.title}》· 拾阶 STEPWELL`}
+  description={book.intro}
+>
+  <nav class="crumbs" aria-label="面包屑">
+    <a href="/">书房</a> ／ <span>{book.cat}</span> ／ <span>{book.title}</span>
+  </nav>
+  <header class="book-head">
+    <div class="rv">
+      <Cover
+        title={book.title}
+        en={book.en}
+        no={book.no}
+        hue={book.hue}
+        hue2={book.hue2}
+        pattern={book.pattern}
+      />
+    </div>
+    <div class="rv" style="--d:.08s">
+      <div class="tags">
+        <span class="tag solid" style={`background:${book.hue}`}>{book.cat}</span>
+        <span class="tag">{book.level}</span>
+        <span class="tag rd" data-status={book.id}>未开卷</span>
+      </div>
+      <h1 class="book-title">{book.title}</h1>
+      <p class="book-en mono">{book.en}</p>
+      <p class="book-sub">{book.sub}</p>
+      <p class="book-intro">{book.intro}</p>
+      <div class="bmeta">
+        <div>
+          <span>VOLUMES · 卷</span>
+          <b>{book.vols.length}</b>
+        </div>
+        <div>
+          <span>CHAPTERS · 讲</span>
+          <b>{book.total}</b>
+        </div>
+        <div>
+          <span>WORDS · 字数</span>
+          <b>{(book.words / 1000).toFixed(1)}k</b>
+        </div>
+        <div>
+          <span>UPDATED · 更新</span>
+          <b>{book.updated}</b>
+        </div>
+      </div>
+      <div class="bprog">
+        <div class="bar"><i data-bar={book.id} data-w="0"></i></div>
+        <div class="bar-cap">
+          <span>阅读进度 <span data-done-count={book.id}>0</span> / {book.total}</span>
+          <span data-bar-pct={book.id}>0%</span>
+        </div>
+      </div>
+      <div class="bact">
+        <a class="btn btn-solid" data-book-cta={book.id} href={first?.path ?? book.path}>
+          从第 1 讲开始
+        </a>
+        <a class="btn btn-ghost" href={first?.path ?? book.path}>从头读起</a>
+      </div>
+    </div>
+  </header>
+
+  <div class="toc-wrap">
+    <aside class="toc-side">
+      <div class="volnav rv">
+        <h6>卷目 · CONTENTS</h6>
+        {
+          book.vols.map((vol, vi) => (
+            <a href={`#vol-${vi}`}>
+              {vol.title}
+              <span>
+                <span data-vol-book={book.id} data-vol-slugs={vol.chapters.map((chapter) => chapter.slug).join(",")}>0</span>/{vol.chapters.length}
+              </span>
+            </a>
+          ))
+        }
+        <div class="vn-prog">
+          <div class="bar"><i data-bar={book.id} data-w="0"></i></div>
+          <div class="bar-cap">
+            <span>总进度</span>
+            <span data-bar-pct={book.id}>0%</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+    <div class="chs">
+      {
+        book.vols.map((vol, vi) => (
+          <>
+            <h2 class="vol" id={`vol-${vi}`}>
+              {vol.title} · {vol.chapters.length} 讲
+            </h2>
+            {vol.chapters.map((chapter) => (
+              <a
+                class="ch todo"
+                data-ch={`${book.id}:${chapter.slug}`}
+                href={chapter.path}
+              >
+                <span class="ch-no">{pad(chapter.idx)}</span>
+                <span class="ch-b">
+                  <b>{chapter.entry.data.title}</b>
+                  <i>{chapter.entry.data.summary}</i>
+                </span>
+                <span class="ch-m mono">
+                  {chapter.minutes} 分钟 · {(chapter.words / 1000).toFixed(1)}k
+                </span>
+                <span class="ch-st" aria-hidden="true"></span>
+              </a>
+            ))}
+          </>
+        ))
+      }
+    </div>
+  </div>
+</Base>

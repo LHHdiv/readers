@@ -1,0 +1,47 @@
+---
+import { site } from "../site.config";
+---
+
+<footer>
+  <div class="f-in">
+    <div>
+      <div class="f-brand">
+        <span class="seal" aria-hidden="true">{site.seal}</span>
+        <b>{site.name} · {site.nameEn}</b>
+      </div>
+      <p>
+        把每一次学习读成一套书。系列文章按书目、卷册、章节安放，进度记在你这台设备上，随时可以回到上次的现场。
+      </p>
+      <div class="swatches" aria-hidden="true">
+        <span class="sw" style="background:#F4EFE3"></span>
+        <span class="sw" style="background:#221B12"></span>
+        <span class="sw" style="background:#B23A26"></span>
+        <span class="sw" style="background:#A87B2F"></span>
+        <span class="sw" style="background:#2E4B57"></span>
+        <span class="sw" style="background:#3C5A46"></span>
+        <span class="sw" style="background:#5A3A5E"></span>
+        <span class="sw" style="background:#A5702D"></span>
+      </div>
+    </div>
+    <div>
+      <h5>快捷键 · SHORTCUTS</h5>
+      <ul class="f-list">
+        <li><span>全局检索</span><span><kbd>⌘ / Ctrl K</kbd> <kbd>/</kbd></span></li>
+        <li><span>上一讲 / 下一讲</span><span><kbd>←</kbd> <kbd>→</kbd></span></li>
+        <li><span>明暗主题</span><kbd>T</kbd></li>
+        <li><span>关闭面板</span><kbd>Esc</kbd></li>
+      </ul>
+    </div>
+    <div class="f-deploy">
+      <h5>怎么写内容 · CONTENT</h5>
+      <p>
+        新增一套书：在 <code>content/books/</code> 放书目元数据，在
+        <code>content/chapters/&lt;书目&gt;/ch01.md</code> 写下章节。推到 GitHub 后，Netlify 会重新构建。
+      </p>
+    </div>
+  </div>
+  <div class="f-bot">
+    <span>© {site.name} {site.nameEn} · {site.motto}</span>
+    <span>STATIC · NETLIFY READY · MARKDOWN NATIVE</span>
+  </div>
+</footer>

@@ -1,0 +1,19 @@
+{
+  "name": "readers",
+  "type": "module",
+  "version": "1.0.0",
+  "private": true,
+  "description": "拾阶 STEPWELL · markdown 驱动的个人系列研读库",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "astro": "^7.2.2"
+  }
+}
