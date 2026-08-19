@@ -7,6 +7,10 @@ export type ChapterView = {
   entry: ChapterEntry;
   slug: string;
   idx: number;
+  order: number;
+  title: string;
+  summary: string;
+  vol: string;
   chars: number;
   minutes: number;
   words: number;
@@ -67,12 +71,26 @@ export type ClientBook = {
 };
 
 export function bookIdFromEntry(entry: BookEntry) {
-  return entry.id.replace(/\.md$/, "");
+  return entry.id.split("/")[0]?.replace(/\.md$/, "") ?? entry.id;
+}
+
+export function chapterBookId(entry: ChapterEntry) {
+  return entry.id.split("/")[0] ?? "";
 }
 
 export function chapterSlug(entry: ChapterEntry) {
   const tail = entry.id.split("/").pop() ?? entry.id;
   return tail.replace(/\.md$/, "");
+}
+
+export function chapterOrder(entry: ChapterEntry) {
+  const name = chapterSlug(entry);
+  const match = name.match(/^(\d+)/);
+  return match ? Number(match[1]) : Number.POSITIVE_INFINITY;
+}
+
+export function cleanTitle(title: string) {
+  return title.replace(/^第\s*\d+\s*章\s*[·.•\-\u2014\u2013]\s*/, "").trim();
 }
 
 export function charCount(body: string) {
@@ -84,7 +102,7 @@ export function estimateMinutes(chars: number) {
 }
 
 export function pad(n: number) {
-  return String(n + 1).padStart(2, "0");
+  return String(n).padStart(2, "0");
 }
 
 export function bookPath(id: string) {
@@ -104,51 +122,59 @@ export function todayLabel(date = new Date()) {
   return `${date.getFullYear()} 年 ${date.getMonth() + 1} 月 ${date.getDate()} 日 · 周${"日一二三四五六"[date.getDay()]}`;
 }
 
-function toChapterView(entry: ChapterEntry, idx: number): ChapterView {
-  const chars = charCount(entry.body);
-  const slug = chapterSlug(entry);
-  return {
-    entry,
-    slug,
-    idx,
-    chars,
-    minutes: estimateMinutes(chars),
-    words: chars,
-    path: chapterPath(entry.data.book, slug),
-  };
+function volumeFor(order: number, phases: { name: string; from: number; to: number }[]) {
+  if (!phases.length) return { name: "正文", index: 1 };
+  const index = phases.findIndex((phase) => order >= phase.from && order <= phase.to);
+  if (index === -1) {
+    return { name: phases[phases.length - 1].name, index: phases.length };
+  }
+  return { name: phases[index].name, index: index + 1 };
 }
 
 export async function loadLibrary(): Promise<BookView[]> {
   const books = (await getCollection("books", ({ data }) => !data.draft)).sort(
     (a, b) => a.data.order - b.data.order,
   );
-  const chapters = (await getCollection("chapters", ({ data }) => !data.draft)).sort((a, b) => {
-    if (a.data.book !== b.data.book) return a.data.book.localeCompare(b.data.book);
-    if (a.data.volOrder !== b.data.volOrder) return a.data.volOrder - b.data.volOrder;
-    return a.data.order - b.data.order;
-  });
-
-  const byBook = new Map<string, ChapterEntry[]>();
-  for (const chapter of chapters) {
-    const list = byBook.get(chapter.data.book) ?? [];
-    list.push(chapter);
-    byBook.set(chapter.data.book, list);
-  }
+  const chapters = await getCollection("chapters", ({ data }) => !data.draft);
 
   return books.map((book) => {
     const id = bookIdFromEntry(book);
-    const list = byBook.get(id) ?? [];
-    const views = list.map((chapter, idx) => toChapterView(chapter, idx));
+    const list = chapters
+      .filter((chapter) => chapterBookId(chapter) === id)
+      .sort((a, b) => chapterOrder(a) - chapterOrder(b));
+
+    const views: ChapterView[] = list.map((entry, idx) => {
+      const order = chapterOrder(entry);
+      const volume = volumeFor(order, book.data.phases);
+      const chars = charCount(entry.body);
+      const slug = chapterSlug(entry);
+      const title = cleanTitle(entry.data.title);
+      return {
+        entry,
+        slug,
+        idx,
+        order,
+        title,
+        summary: entry.data.summary || title,
+        vol: volume.name,
+        chars,
+        minutes: estimateMinutes(chars),
+        words: chars,
+        path: chapterPath(id, slug),
+      };
+    });
+
     const volMap = new Map<string, ChapterView[]>();
     const volOrder = new Map<string, number>();
     for (const view of views) {
-      const title = view.entry.data.vol;
-      if (!volMap.has(title)) {
-        volMap.set(title, []);
-        volOrder.set(title, view.entry.data.volOrder);
+      const phase = volumeFor(view.order, book.data.phases);
+      if (!volMap.has(view.vol)) {
+        volMap.set(view.vol, []);
+        volOrder.set(view.vol, phase.index);
       }
-      volMap.get(title)!.push(view);
+      volMap.get(view.vol)!.push(view);
     }
+
     const vols: VolumeView[] = [...volMap.entries()]
       .map(([title, chs]) => ({
         title,
@@ -196,9 +222,9 @@ export function toClientCatalog(books: BookView[]): ClientBook[] {
     path: book.path,
     chapters: book.chapters.map((chapter) => ({
       slug: chapter.slug,
-      title: chapter.entry.data.title,
-      vol: chapter.entry.data.vol,
-      summary: chapter.entry.data.summary,
+      title: chapter.title,
+      vol: chapter.vol,
+      summary: chapter.summary,
       minutes: chapter.minutes,
       words: chapter.words,
       path: chapter.path,

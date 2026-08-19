@@ -518,7 +518,7 @@ function bindChrome() {
       }
       return;
     }
-    if (target.closest("[data-theme]")) {
+    if (target.closest("[data-theme-toggle]")) {
       state.theme = state.theme === "dark" ? "light" : "dark";
       save();
       applyTheme();

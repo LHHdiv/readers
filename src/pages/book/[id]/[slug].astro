@@ -1,7 +1,7 @@
 ---
 import { render } from "astro:content";
 import Base from "../../../layouts/Base.astro";
-import { loadLibrary, toClientCatalog, findBook, findChapter } from "../../../lib/catalog";
+import { loadLibrary, toClientCatalog, findBook, findChapter, pad } from "../../../lib/catalog";
 
 export async function getStaticPaths() {
   const books = await loadLibrary();
@@ -27,14 +27,14 @@ const toc = headings.filter((heading) => heading.depth === 2 || heading.depth ==
 <Base
   catalog={catalog}
   view="reader"
-  title={`${chapter.entry.data.title} · 《${book.title}》· 拾阶`}
-  description={chapter.entry.data.summary}
+  title={`${chapter.title} · 《${book.title}》· 拾阶`}
+  description={chapter.summary}
 >
   <div class="rprog" id="rprog"></div>
   <div class="reader-top">
     <a class="rt-back" href={book.path}>← 《{book.title}》</a>
     <span class="rt-mid">
-      {chapter.entry.data.vol} · 第 {chapter.idx + 1} / {book.total} 讲 · 约 {chapter.minutes} 分钟
+      {chapter.vol} · 第 {pad(chapter.order)} 章 · 约 {chapter.minutes} 分钟
     </span>
     <div class="rt-tools">
       <button class="ibtn" data-fs="-1" type="button" aria-label="缩小字号">A−</button>
@@ -67,10 +67,10 @@ const toc = headings.filter((heading) => heading.depth === 2 || heading.depth ==
       data-prev={prev?.path ?? ""}
       data-next={next?.path ?? ""}
     >
-      <p class="art-kicker">《{book.title}》· {chapter.entry.data.vol}</p>
-      <h1 class="art-title">{chapter.entry.data.title}</h1>
+      <p class="art-kicker">《{book.title}》· {chapter.vol}</p>
+      <h1 class="art-title">{chapter.title}</h1>
       <div class="art-meta mono">
-        <span>第 {chapter.idx + 1} / {book.total} 讲</span>
+        <span>第 {pad(chapter.order)} 章 · {chapter.idx + 1} / {book.total}</span>
         <span>{(chapter.words / 1000).toFixed(1)}k 字</span>
         <span>约 {chapter.minutes} 分钟</span>
         <span id="doneStamp" data-ch-stamp={`${book.id}:${chapter.slug}`}></span>
@@ -89,7 +89,7 @@ const toc = headings.filter((heading) => heading.depth === 2 || heading.depth ==
           prev ? (
             <a class="an prev" href={prev.path}>
               <small>上一讲</small>
-              <b>{prev.entry.data.title}</b>
+              <b>{prev.title}</b>
             </a>
           ) : (
             <a class="an prev" href={book.path}>
@@ -102,7 +102,7 @@ const toc = headings.filter((heading) => heading.depth === 2 || heading.depth ==
           next ? (
             <a class="an next" href={next.path}>
               <small>下一讲</small>
-              <b>{next.entry.data.title}</b>
+              <b>{next.title}</b>
             </a>
           ) : (
             <a class="an next" href={book.path}>

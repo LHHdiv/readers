@@ -115,10 +115,10 @@ const first = book.chapters[0];
                 data-ch={`${book.id}:${chapter.slug}`}
                 href={chapter.path}
               >
-                <span class="ch-no">{pad(chapter.idx)}</span>
+                <span class="ch-no">{pad(chapter.order)}</span>
                 <span class="ch-b">
-                  <b>{chapter.entry.data.title}</b>
-                  <i>{chapter.entry.data.summary}</i>
+                  <b>{chapter.title}</b>
+                  <i>{chapter.summary}</i>
                 </span>
                 <span class="ch-m mono">
                   {chapter.minutes} 分钟 · {(chapter.words / 1000).toFixed(1)}k

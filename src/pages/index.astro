@@ -77,13 +77,13 @@ const today = todayLabel();
             <div>
               <p class="resume-k mono">RESUME · 上次读到</p>
               <h3 data-resume-title>
-                《{first.title}》第 1 讲 · {firstChapter.entry.data.title}
+                《{first.title}》第 1 讲 · {firstChapter.title}
               </h3>
               <p class="rv-sub mono" data-resume-sub>
-                {firstChapter.entry.data.vol} · 约 {firstChapter.minutes} 分钟 ·{" "}
+                {firstChapter.vol} · 约 {firstChapter.minutes} 分钟 ·{" "}
                 {(firstChapter.words / 1000).toFixed(1)}k 字
               </p>
-              <p class="rv-x" data-resume-x>{firstChapter.entry.data.summary}</p>
+              <p class="rv-x" data-resume-x>{firstChapter.summary}</p>
               <div class="bar">
                 <i data-bar={first.id} data-w="0"></i>
               </div>

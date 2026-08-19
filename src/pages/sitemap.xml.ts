@@ -2,7 +2,7 @@ import type { APIRoute } from "astro";
 import { loadLibrary } from "../lib/catalog";
 
 export const GET: APIRoute = async ({ site }) => {
-  const origin = site ?? new URL("https://readers.netlify.app");
+  const origin = site ?? new URL("https://readers-site.netlify.app");
   const books = await loadLibrary();
   const paths = ["/", ...books.map((book) => book.path), ...books.flatMap((book) => book.chapters.map((chapter) => chapter.path))];
   const body = `<?xml version="1.0" encoding="UTF-8"?>

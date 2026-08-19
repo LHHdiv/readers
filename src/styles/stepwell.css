@@ -1962,6 +1962,10 @@
       vertical-align: 2px
     }
 
+    #artBody > h1:first-child {
+      display: none;
+    }
+
     #artBody>p:first-of-type::first-letter {
       font-size: 3.1em;
       font-weight: 900;

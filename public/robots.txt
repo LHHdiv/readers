@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://readers.netlify.app/sitemap.xml
+Sitemap: https://readers-site.netlify.app/sitemap.xml

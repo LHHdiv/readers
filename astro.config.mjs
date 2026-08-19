@@ -2,7 +2,7 @@
 import { defineConfig } from "astro/config";
 
 export default defineConfig({
-  site: "https://readers.netlify.app",
+  site: "https://readers-site.netlify.app",
   trailingSlash: "always",
   devToolbar: { enabled: false },
   markdown: {
